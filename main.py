@@ -28,8 +28,8 @@ async def process_image(file: UploadFile = File(...)):
     np_image = np.frombuffer(image_data, np.uint8)
     image = cv2.imdecode(np_image, cv2.IMREAD_COLOR)
 
-    features = extract_features(image)  # byte[]
-    order = extract_feature_means_sort(image)  # 예제 문자열
+    features = extract_features(image)  # byte[] , 이미지의 특징점
+    order = extract_feature_means_sort(image)  # 문자열, 크기순으로 정렬된 레이어 번호
 
     # 🔥 features를 Base64 문자열로 변환
     features_base64 = base64.b64encode(features).decode("utf-8")
