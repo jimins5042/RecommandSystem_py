@@ -27,9 +27,10 @@ async def process_image(file: UploadFile = File(...)):
     image_data = await file.read()
     np_image = np.frombuffer(image_data, np.uint8)
     image = cv2.imdecode(np_image, cv2.IMREAD_COLOR)
+    img = load_and_preprocess_image(image)  # 변환된 NumPy 배열 사용
 
-    features = extract_features(image)  # byte[] , 이미지의 특징점
-    order = extract_feature_means_sort(image)  # 문자열, 크기순으로 정렬된 레이어 번호
+    features = extract_features(img)  # byte[] , 이미지의 특징점
+    order = extract_feature_means_sort(img)  # 문자열, 크기순으로 정렬된 레이어 번호
 
     # 🔥 features를 Base64 문자열로 변환
     features_base64 = base64.b64encode(features).decode("utf-8")
@@ -45,9 +46,10 @@ def load_and_preprocess_image(image: Image.Image):
     img = preprocess_input(img)
     return img
 
+
 # 3. 각 레이어의 Intensity 값이 큰 순서대로 정렬
-def extract_feature_means_sort(image: Image.Image):
-    img = load_and_preprocess_image(image)  # 변환된 NumPy 배열 사용
+def extract_feature_means_sort(img):
+
     feature_maps = model.predict(img)  # (1, 14, 14, 512) 형태
     feature_maps = feature_maps.squeeze()  # (14, 14, 512)로 변환
 
@@ -65,8 +67,8 @@ def extract_feature_means_sort(image: Image.Image):
     return json.dumps(layer_numbers)  # JSON 문자열 변환 후 반환
 
 # 4. 이미지의 특징점 추출 및 이진화
-def extract_features(image: Image.Image):
-    img = load_and_preprocess_image(image)
+def extract_features(img):
+
     features = base_model.predict(img).flatten()  # 1D 벡터 변환
 
     # 0을 제외한 값들의 평균 계산
