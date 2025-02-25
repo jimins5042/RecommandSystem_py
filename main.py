@@ -32,7 +32,7 @@ async def process_image(file: UploadFile = File(...)):
     features = extract_features(img)  # byte[] , 이미지의 특징점
     order = extract_feature_means_sort(img)  # 문자열, 크기순으로 정렬된 레이어 번호
 
-    # 🔥 features를 Base64 문자열로 변환
+    # features를 Base64 문자열로 변환
     features_base64 = base64.b64encode(features).decode("utf-8")
 
     return JSONResponse(content={"order": order, "features": features_base64})
