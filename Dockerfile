@@ -1,22 +1,20 @@
 FROM python:3.11-slim
 
-# Install system dependencies for OpenCV and other libraries
+# Install minimal GLIB and OpenMP for OpenCV/TensorFlow functionality
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
     libglib2.0-0 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy requirements and install
+# Install sorted dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Application code
 COPY . .
 
-# Expose the API port
+# Exposure and start
 EXPOSE 8000
-
-# Start command
 CMD ["python", "main.py"]
