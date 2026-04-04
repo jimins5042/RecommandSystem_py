@@ -149,6 +149,10 @@ def detect_and_crop(image: Image.Image):
     best_cls = int(boxes.cls[best_idx].item())
     class_name = CLASS_NAMES[best_cls] if best_cls < len(CLASS_NAMES) else "unknown"
 
+    # all_detections에서 가장 높은 confidence 1개 제거 (값이 중복되므로)
+    if len(all_detections) > best_idx:
+        all_detections.pop(best_idx)
+
     # crop (경계 클리핑)
     x1, y1 = max(0, best_box[0]), max(0, best_box[1])
     x2, y2 = min(w, best_box[2]), min(h, best_box[3])
