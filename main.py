@@ -52,23 +52,30 @@ app = FastAPI()
 
 @app.post("/visualize/")
 async def visualize_image(file: UploadFile = File(...)):
-    image_data = await file.read()
-    image = Image.open(BytesIO(image_data)).convert("RGB")
+    if yolo_model is None:
+        return JSONResponse(status_code=500, content={"error": "YOLO model not loaded. Check model path."})
 
-    results = yolo_model.predict(np.array(image), conf=YOLO_CONF_THRESHOLD, verbose=False)
-    boxes = results[0].boxes
+    try:
+        image_data = await file.read()
+        image = Image.open(BytesIO(image_data)).convert("RGB")
 
-    detections = []
-    if boxes is not None and len(boxes) > 0:
-        for box in boxes:
-            b = box.xyxy[0].cpu().numpy()
-            detections.append({
-                "class": CLASS_NAMES[int(box.cls[0].item())] if int(box.cls[0].item()) < len(CLASS_NAMES) else "unknown",
-                "confidence": round(box.conf[0].item(), 4),
-                "coordinate": [int(b[0]), int(b[1]), int(b[2]), int(b[3])]
-            })
+        results = yolo_model.predict(np.array(image), conf=YOLO_CONF_THRESHOLD, verbose=False)
+        boxes = results[0].boxes
 
-    return JSONResponse(content={"detections": detections})
+        detections = []
+        if boxes is not None and len(boxes) > 0:
+            for box in boxes:
+                b = box.xyxy[0].cpu().numpy()
+                detections.append({
+                    "class": CLASS_NAMES[int(box.cls[0].item())] if int(box.cls[0].item()) < len(CLASS_NAMES) else "unknown",
+                    "confidence": round(box.conf[0].item(), 4),
+                    "coordinate": [int(b[0]), int(b[1]), int(b[2]), int(b[3])]
+                })
+
+        return JSONResponse(content={"detections": detections})
+    except Exception as e:
+        logger.error(f"Prediction error: {str(e)}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/process-image/")
 async def process_image(file: UploadFile = File(...)):
