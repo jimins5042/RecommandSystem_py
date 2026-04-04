@@ -1,8 +1,14 @@
 import json
 import os
 import logging
-from io import BytesIO
 import base64
+from io import BytesIO
+
+# 기본 로깅 설정 추가 (로그 출력 보장)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
 
 import numpy as np
 import torch
@@ -36,17 +42,27 @@ preprocess = transforms.Compose([
 ])
 
 # 2. YOLO 모델 설정
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# 도커 설정에서 정한 절대 경로(/opt/vgg16/RecommandSystem_py)를 우선 참조
+BASE_DIR = os.environ.get("APP_HOME", os.path.dirname(os.path.abspath(__file__)))
 YOLO_MODEL_PATH = os.path.join(BASE_DIR, "model", "best.pt")
 YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.5"))
 CLASS_NAMES = ["bag", "sunglasses", "food_drink", "shoes", "clothing"]
+
+# 디버깅을 위한 경로 출력
+logger.info(f"YOLO Search Path: {YOLO_MODEL_PATH}")
 
 if os.path.exists(YOLO_MODEL_PATH):
     yolo_model = YOLO(YOLO_MODEL_PATH).to(device)
     logger.info(f"YOLO model loaded on {device}")
 else:
-    yolo_model = None
-    logger.warning(f"YOLO model not found at {YOLO_MODEL_PATH}")
+    # 하드코딩된 절대 경로를 마지막 수단으로 시도
+    fallback_path = "/opt/vgg16/RecommandSystem_py/model/best.pt"
+    if os.path.exists(fallback_path):
+        yolo_model = YOLO(fallback_path).to(device)
+        logger.info(f"YOLO model loaded via fallback path: {fallback_path}")
+    else:
+        yolo_model = None
+        logger.warning(f"YOLO model NOT FOUND. Checked: {YOLO_MODEL_PATH} and {fallback_path}")
 
 app = FastAPI()
 
