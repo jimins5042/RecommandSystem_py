@@ -61,18 +61,17 @@ feature_model = nn.Sequential(*list(vgg16.features)[:30]).to(device)
 base_model = vgg16.features.to(device)
 logger.info("VGG16 모델 로딩 완료")
 
-# PyTorch용 전처리 설정
-preprocess = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-])
+# Keras VGG16 호환 이미지 전처리
+def load_and_preprocess(image: Image.Image) -> torch.Tensor:
+    img = image.convert("RGB").resize((224, 224))
+    img_np = np.array(img, dtype=np.float32)[:, :, ::-1].copy() # RGB to BGR
+    img_np[:, :, 0] -= 103.939
+    img_np[:, :, 1] -= 116.779
+    img_np[:, :, 2] -= 123.68
+    return torch.from_numpy(img_np.transpose((2, 0, 1)))
 
 BATCH_SIZE = 32
 SPLIT_SIZE = 500
-
-def load_and_preprocess(image: Image.Image) -> torch.Tensor:
-    return preprocess(image.convert("RGB"))
 
 def extract_features_batch(imgs_tensor: torch.Tensor) -> list[bytes]:
     with torch.no_grad():

@@ -34,12 +34,20 @@ vgg16.eval()
 model_mid = nn.Sequential(*list(vgg16.features)[:30]).to(device)
 base_extractor = vgg16.features.to(device)
 
-# PyTorch 이미지 전처리 설정
-preprocess = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-])
+# PyTorch 이미지 전처리 (TensorFlow Keras VGG16과 동일한 방식 적용)
+def load_and_preprocess_image(image: Image.Image):
+    # RGB -> BGR 변환 및 224x224 리사이즈
+    img = image.convert("RGB").resize((224, 224))
+    img_np = np.array(img, dtype=np.float32)[:, :, ::-1].copy() # RGB to BGR
+    
+    # Keras VGG16 Mean 값 차감 (0~255 스케일 유지)
+    img_np[:, :, 0] -= 103.939 # Blue
+    img_np[:, :, 1] -= 116.779 # Green
+    img_np[:, :, 2] -= 123.68  # Red
+    
+    # PyTorch 텐서로 변환 (H, W, C -> C, H, W)
+    img_tensor = torch.from_numpy(img_np.transpose((2, 0, 1))).unsqueeze(0).to(device)
+    return img_tensor
 
 # 2. YOLO 모델 설정
 # 도커 설정에서 정한 절대 경로(/opt/vgg16/RecommandSystem_py)를 우선 참조
@@ -173,8 +181,7 @@ def detect_and_crop(image: Image.Image):
     coordinate = [int(x1), int(y1), int(x2), int(y2)]
     return cropped, class_name, best_conf, coordinate, all_detections
 
-def load_and_preprocess_image(image: Image.Image):
-    return preprocess(image.convert("RGB")).unsqueeze(0).to(device)
+# (기존 load_and_preprocess_image 함수는 상단에 정의된 것을 사용하도록 수정함)
 
 def extract_feature_means_sort(img_tensor):
     with torch.no_grad():
