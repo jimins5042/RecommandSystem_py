@@ -1,0 +1,54 @@
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+/venv/
+/.venv/
+
+### VS Code ###
+.vscode/
+/.env
+
+/src/main/resources/wallet/
+/src/main/resources/upload/*
+**/yolo_dataset/*
+*.pyc
+*.pt
+*.properties
+*.md
+*.zip
+.scannerwork/report-task.txt
+.scannerwork/.sonar_lock
+.idea/misc.xml
+.idea/recommandSystem.iml
+.idea/misc.xml
