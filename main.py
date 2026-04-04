@@ -2,38 +2,51 @@ import json
 import os
 import logging
 from io import BytesIO
+import base64
 
 import numpy as np
+import torch
+import torch.nn as nn
+from torchvision import models, transforms
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from tensorflow.keras.applications import VGG16
-from tensorflow.keras.applications.vgg16 import preprocess_input
-from tensorflow.keras.models import Model
 from ultralytics import YOLO
-import base64
 
 logger = logging.getLogger(__name__)
 
-# 1. VGG16 모델 (conv5_block3_conv3 레이어까지 가져오기)
-base_model = VGG16(weights="imagenet", include_top=False)
-layer_name = "block5_conv3"  # 마지막 Conv Layer
-model = Model(inputs=base_model.input, outputs=base_model.get_layer(layer_name).output)
+# GPU 사용 가능 여부 확인
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# 2. YOLO 모델 (상품 객체 인식)
-# 실행 환경에 구애받지 않도록 상대 경로 설정
+# 1. VGG16 모델 설정 (TensorFlow 대신 PyTorch 사용)
+vgg16 = models.vgg16(weights='IMAGENET1K_V1')
+vgg16.eval()
+
+# Keras의 block5_conv3(ReLU 포함)와 유사한 지점까지 자르기
+# vgg16.features[28] is Conv5_3, [29] is ReLU
+model_mid = nn.Sequential(*list(vgg16.features)[:30]).to(device)
+base_extractor = vgg16.features.to(device)
+
+# PyTorch 이미지 전처리 설정
+preprocess = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
+
+# 2. YOLO 모델 설정
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 YOLO_MODEL_PATH = os.path.join(BASE_DIR, "model", "best.pt")
 YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.5"))
 CLASS_NAMES = ["bag", "sunglasses", "food_drink", "shoes", "clothing"]
 
 if os.path.exists(YOLO_MODEL_PATH):
-    yolo_model = YOLO(YOLO_MODEL_PATH)
-    logger.info(f"YOLO model loaded from {YOLO_MODEL_PATH}")
+    yolo_model = YOLO(YOLO_MODEL_PATH).to(device)
+    logger.info(f"YOLO model loaded on {device}")
 else:
     yolo_model = None
-    logger.warning(f"YOLO model not found at {YOLO_MODEL_PATH}. Running without object detection.")
+    logger.warning(f"YOLO model not found at {YOLO_MODEL_PATH}")
 
 app = FastAPI()
 
@@ -62,15 +75,13 @@ async def process_image(file: UploadFile = File(...)):
     image_data = await file.read()
     image = Image.open(BytesIO(image_data)).convert("RGB")
 
-    # YOLO 객체 인식 → crop
     cropped_image, detectedClass, confidence, coordinate, all_detections = detect_and_crop(image)
 
-    img = load_and_preprocess_image(cropped_image)
+    img_tensor = load_and_preprocess_image(cropped_image)
 
-    features = extract_features(img)  # byte[] , 이미지의 특징점
-    order = extract_feature_means_sort(img)  # 문자열, 크기순으로 정렬된 레이어 번호
+    features = extract_features(img_tensor)
+    order = extract_feature_means_sort(img_tensor)
 
-    # features를 Base64 문자열로 변환
     features_base64 = base64.b64encode(features).decode("utf-8")
 
     return JSONResponse(content={
@@ -87,13 +98,11 @@ async def process_image_crop(file: UploadFile = File(...)):
     image_data = await file.read()
     image = Image.open(BytesIO(image_data)).convert("RGB")
 
-    # 이미 크롭된 이미지이므로 YOLO 감지 과정을 생략하여 속도 향상
-    img = load_and_preprocess_image(image)
+    img_tensor = load_and_preprocess_image(image)
 
-    features = extract_features(img)
-    order = extract_feature_means_sort(img)
+    features = extract_features(img_tensor)
+    order = extract_feature_means_sort(img_tensor)
 
-    # features를 Base64 문자열로 변환
     features_base64 = base64.b64encode(features).decode("utf-8")
 
     return JSONResponse(content={
@@ -101,26 +110,7 @@ async def process_image_crop(file: UploadFile = File(...)):
         "featuresBase64": features_base64
     })
 
-
-@app.post("/process-image/crop/")
-async def process_cropImage(file: UploadFile = File(...)):
-    image_data = await file.read()
-    image = Image.open(BytesIO(image_data)).convert("RGB")
-    img = load_and_preprocess_image(image)
-
-    features = extract_features(img)  # byte[] , 이미지의 특징점
-    order = extract_feature_means_sort(img)  # 문자열, 크기순으로 정렬된 레이어 번호
-
-    # features를 Base64 문자열로 변환
-    features_base64 = base64.b64encode(features).decode("utf-8")
-
-    return JSONResponse(content={
-        "order": order,
-        "featuresBase64": features_base64,
-    })
-
 def detect_and_crop(image: Image.Image):
-    """YOLO로 상품 감지 후 가장 높은 confidence의 객체를 crop하고, 전체 감지 목록도 반환"""
     if yolo_model is None:
         return image, None, None, None, []
 
@@ -130,7 +120,6 @@ def detect_and_crop(image: Image.Image):
     if boxes is None or len(boxes) == 0:
         return image, None, None, None, []
 
-    # 전체 감지 결과
     w, h = image.size
     all_detections = []
     for box in boxes:
@@ -142,18 +131,15 @@ def detect_and_crop(image: Image.Image):
             "coordinate": [int(max(0, b[0])), int(max(0, b[1])), int(min(w, b[2])), int(min(h, b[3]))]
         })
 
-    # confidence 가장 높은 1개 선택
     best_idx = boxes.conf.argmax().item()
     best_box = boxes.xyxy[best_idx].cpu().numpy().astype(int)
     best_conf = boxes.conf[best_idx].item()
     best_cls = int(boxes.cls[best_idx].item())
     class_name = CLASS_NAMES[best_cls] if best_cls < len(CLASS_NAMES) else "unknown"
 
-    # all_detections에서 가장 높은 confidence 1개 제거 (값이 중복되므로)
     if len(all_detections) > best_idx:
         all_detections.pop(best_idx)
 
-    # crop (경계 클리핑)
     x1, y1 = max(0, best_box[0]), max(0, best_box[1])
     x2, y2 = min(w, best_box[2]), min(h, best_box[3])
     cropped = image.crop((x1, y1, x2, y2))
@@ -164,51 +150,30 @@ def detect_and_crop(image: Image.Image):
     coordinate = [int(x1), int(y1), int(x2), int(y2)]
     return cropped, class_name, best_conf, coordinate, all_detections
 
-
-# 2. 이미지 전처리 함수
 def load_and_preprocess_image(image: Image.Image):
-    img = image.convert("RGB").resize((224, 224))
-    img = np.expand_dims(np.array(img, dtype=np.float32), axis=0)
-    img = preprocess_input(img)
-    return img
+    return preprocess(image.convert("RGB")).unsqueeze(0).to(device)
 
-
-# 3. 각 레이어의 Intensity 값이 큰 순서대로 정렬
-def extract_feature_means_sort(img):
-
-    feature_maps = model.predict(img)  # (1, 14, 14, 512) 형태
-    feature_maps = feature_maps.squeeze()  # (14, 14, 512)로 변환
-
-    # 각 레이어의 평균 Intensity 계산
+def extract_feature_means_sort(img_tensor):
+    with torch.no_grad():
+        feature_maps = model_mid(img_tensor).squeeze(0).cpu().numpy()
+    
     feature_dict = {
-        # f"{i + 1}": np.mean(feature_maps[:, :, i]) for i in range(512)
-        f"{i}": np.mean(feature_maps[:, :, i]) for i in range(512)
+        f"{i}": float(np.mean(feature_maps[i, :, :])) for i in range(512)
     }
 
-    # 내림차순 정렬 후 상위 25개 선택
     sorted_features = sorted(feature_dict.items(), key=lambda x: x[1], reverse=True)
     layer_numbers = [int(layer) for layer, _ in sorted_features[:25]]
-    json_data = json.dumps(layer_numbers)
-    print(json_data)
+    return json.dumps(layer_numbers)
 
-    return json.dumps(layer_numbers)  # JSON 문자열 변환 후 반환
-
-# 4. 이미지의 특징점 추출 및 이진화
-def extract_features(img):
-
-    features = base_model.predict(img).flatten()  # 1D 벡터 변환
-
-    # 0을 제외한 값들의 평균 계산
+def extract_features(img_tensor):
+    with torch.no_grad():
+        features = base_extractor(img_tensor).flatten().cpu().numpy()
+    
     nonzero_features = features[features != 0]
     mean_value = np.mean(nonzero_features) if len(nonzero_features) > 0 else 0
-
-    # 이진화: 평균 이상이면 1, 미만이면 0
     binary_features = np.where(features >= mean_value, 1, 0)
-    binary_bytes = np.packbits(binary_features).tobytes()  # NumPy 배열을 bytes로 변환
-    #print(f" 이진화된 특징점 일부: {binary_features[:100]}")
-    return binary_bytes
+    return np.packbits(binary_features).tobytes()
 
-# static 파일 서빙 (API 라우트 등록 후 마운트해야 가려지지 않음)
 app.mount("/", StaticFiles(directory=os.path.join(BASE_DIR, "static"), html=True), name="static")
 
 if __name__ == "__main__":
