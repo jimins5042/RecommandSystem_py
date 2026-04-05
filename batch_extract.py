@@ -1,9 +1,8 @@
 """
 배치 특징점 추출 스크립트
 - images_*.csv 에서 이미지 목록 읽기
-- classify/json/ 에서 bounding box 좌표 읽기
-- 해당 이미지를 좌표로 crop
-- VGG16 feature 추출 (binary + order) — GPU 배치 inference
+- YOLO로 상품 감지 후 crop
+- VGG16 feature 추출 (binary + order) — ONNX Runtime 배치 inference
 - CSV로 저장 (500개 단위 분할)
 """
 
@@ -16,11 +15,8 @@ import base64
 import time
 
 import numpy as np
+import onnxruntime as ort
 from PIL import Image
-import tensorflow as tf
-from tensorflow.keras.applications import VGG16
-from tensorflow.keras.applications.vgg16 import preprocess_input
-from tensorflow.keras.models import Model
 from ultralytics import YOLO
 
 logging.basicConfig(
@@ -29,22 +25,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ── GPU 설정 ──
-gpus = tf.config.list_physical_devices("GPU")
-if gpus:
-    for gpu in gpus:
-        tf.config.experimental.set_memory_growth(gpu, True)
-    logger.info(f"GPU 감지: {[g.name for g in gpus]}")
-else:
-    logger.warning("GPU 없음 — CPU 모드로 실행")
-
-# ── 경로 설정 ──
-CLASSIFY_DIR = os.environ.get("CLASSIFY_DIR", "/mnt/c/Users/coolc/OneDrive/Desktop/marqvision/classify")
-img_DIR = os.environ.get("IMG_DIR", "/mnt/c/Users/coolc/IdeaProjects/RecommendSystem/src/main/resources/upload")
+# ── 절대 경로 설정 (환경변수 우선, 기본값은 Docker 경로) ──
+MODEL_DIR = os.getenv("MODEL_DIR", "/app/model")
+CLASSIFY_DIR = os.getenv("CLASSIFY_DIR", "/app/classify")
+IMG_DIR = os.getenv("IMG_DIR", "/app/upload")
 
 # ── YOLO 모델 로드 ──
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-YOLO_MODEL_PATH = os.path.join(BASE_DIR, "model", "best.pt")
+YOLO_MODEL_PATH = os.path.join(MODEL_DIR, "best.pt")
 YOLO_CONF_THRESHOLD = 0.5
 CLASS_NAMES = ["bag", "sunglasses", "food_drink", "shoes", "clothing"]
 
@@ -58,33 +45,38 @@ else:
 CSV_DIR = os.path.join(CLASSIFY_DIR, "csv")
 JSON_DIR = os.path.join(CLASSIFY_DIR, "json")
 
-CATEGORY_MAP = {
-    "가방": "가방",
-    "선글라스": "선글라스",
-    "식음료": "식음료",
-    "신발": "신발",
-    "의류": "의류",
-}
-
 BATCH_SIZE = 32
 SPLIT_SIZE = 500
 
-# ── VGG16 모델 로드 ──
-logger.info("VGG16 모델 로딩...")
-base_model = VGG16(weights="imagenet", include_top=False)
-layer_name = "block5_conv3"
-feature_model = Model(inputs=base_model.input, outputs=base_model.get_layer(layer_name).output)
-logger.info("VGG16 모델 로딩 완료")
+# ── VGG16 ONNX 모델 로드 ──
+ONNX_FULL_PATH = os.path.join(MODEL_DIR, "vgg16_full.onnx")
+ONNX_BLOCK5_PATH = os.path.join(MODEL_DIR, "vgg16_block5_conv3.onnx")
+
+logger.info("VGG16 ONNX 모델 로딩...")
+session_full = ort.InferenceSession(ONNX_FULL_PATH)
+session_block5 = ort.InferenceSession(ONNX_BLOCK5_PATH)
+logger.info("VGG16 ONNX 모델 로딩 완료")
+
+
+# ── VGG16 전처리 (TensorFlow preprocess_input 동일) ──
+def preprocess_input_vgg16(img: np.ndarray) -> np.ndarray:
+    """RGB→BGR 변환 후 ImageNet 채널별 평균 차감 (TF caffe 모드와 동일)"""
+    img = img[..., ::-1].copy()  # RGB → BGR
+    img[..., 0] -= 103.939
+    img[..., 1] -= 116.779
+    img[..., 2] -= 123.68
+    return img
 
 
 def load_and_preprocess(image: Image.Image) -> np.ndarray:
     img = image.convert("RGB").resize((224, 224))
-    img = preprocess_input(np.array(img, dtype=np.float32))
+    img = preprocess_input_vgg16(np.array(img, dtype=np.float32))
     return img
 
 
 def extract_features_batch(imgs: np.ndarray) -> list[bytes]:
-    preds = base_model.predict(imgs, verbose=0)
+    input_name = session_full.get_inputs()[0].name
+    preds = session_full.run(None, {input_name: imgs})[0]
     results = []
     for i in range(preds.shape[0]):
         features = preds[i].flatten()
@@ -96,12 +88,12 @@ def extract_features_batch(imgs: np.ndarray) -> list[bytes]:
 
 
 def extract_feature_order_batch(imgs: np.ndarray) -> list[str]:
-    fmaps = feature_model.predict(imgs, verbose=0)
+    input_name = session_block5.get_inputs()[0].name
+    fmaps = session_block5.run(None, {input_name: imgs})[0]
     results = []
     for i in range(fmaps.shape[0]):
         fm = fmaps[i]
         means = np.mean(fm, axis=(0, 1))
-        # 0-indexed (0~511) 사용
         top25 = (np.argsort(means)[::-1][:25]).tolist()
         results.append(json.dumps(top25))
     return results
@@ -109,9 +101,8 @@ def extract_feature_order_batch(imgs: np.ndarray) -> list[str]:
 
 def find_image_path(image_url: str) -> str | None:
     """image_url (예: /upload/가방/xxx.jpg) → 실제 파일 경로"""
-    # img_DIR에 이미 /upload 가 포함되어 있으므로, 중복되지 않게 처리
     rel_path = image_url.replace("/upload/", "").lstrip("/")
-    img_path = os.path.join(img_DIR, rel_path)
+    img_path = os.path.join(IMG_DIR, rel_path)
     if os.path.exists(img_path):
         return img_path
     return None
@@ -135,10 +126,10 @@ def crop_image_with_yolo(image: Image.Image) -> Image.Image:
     w, h = image.size
     x1, y1 = max(0, best_box[0]), max(0, best_box[1])
     x2, y2 = min(w, best_box[2]), min(h, best_box[3])
-    
+
     if x2 <= x1 or y2 <= y1:
         return image
-        
+
     return image.crop((x1, y1, x2, y2))
 
 
@@ -262,7 +253,7 @@ def main():
 
                 image = Image.open(img_path)
 
-                # YOLO를 이용한 가변 Crop (JSON 대신 사용)
+                # YOLO를 이용한 가변 Crop
                 cropped = crop_image_with_yolo(image)
 
                 preprocessed = load_and_preprocess(cropped)

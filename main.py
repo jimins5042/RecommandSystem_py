@@ -4,27 +4,30 @@ import logging
 from io import BytesIO
 
 import numpy as np
+import onnxruntime as ort
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from tensorflow.keras.applications import VGG16
-from tensorflow.keras.applications.vgg16 import preprocess_input
-from tensorflow.keras.models import Model
 from ultralytics import YOLO
 import base64
 
 logger = logging.getLogger(__name__)
 
-# 1. VGG16 모델 (conv5_block3_conv3 레이어까지 가져오기)
-base_model = VGG16(weights="imagenet", include_top=False)
-layer_name = "block5_conv3"  # 마지막 Conv Layer
-model = Model(inputs=base_model.input, outputs=base_model.get_layer(layer_name).output)
+# ── 절대 경로 설정 (환경변수 우선, 기본값은 Docker 경로) ──
+MODEL_DIR = os.getenv("MODEL_DIR", "/app/model")
+STATIC_DIR = os.getenv("STATIC_DIR", "/app/static")
+
+# 1. VGG16 ONNX 모델 로드
+ONNX_FULL_PATH = os.path.join(MODEL_DIR, "vgg16_full.onnx")
+ONNX_BLOCK5_PATH = os.path.join(MODEL_DIR, "vgg16_block5_conv3.onnx")
+
+session_full = ort.InferenceSession(ONNX_FULL_PATH)
+session_block5 = ort.InferenceSession(ONNX_BLOCK5_PATH)
+logger.info(f"VGG16 ONNX models loaded from {MODEL_DIR}")
 
 # 2. YOLO 모델 (상품 객체 인식)
-# 실행 환경에 구애받지 않도록 상대 경로 설정
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-YOLO_MODEL_PATH = os.path.join(BASE_DIR, "model", "best.pt")
+YOLO_MODEL_PATH = os.path.join(MODEL_DIR, "best.pt")
 YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.5"))
 CLASS_NAMES = ["bag", "sunglasses", "food_drink", "shoes", "clothing"]
 
@@ -36,6 +39,17 @@ else:
     logger.warning(f"YOLO model not found at {YOLO_MODEL_PATH}. Running without object detection.")
 
 app = FastAPI()
+
+
+# ── VGG16 전처리 (TensorFlow preprocess_input 동일) ──
+def preprocess_input_vgg16(img: np.ndarray) -> np.ndarray:
+    """RGB→BGR 변환 후 ImageNet 채널별 평균 차감 (TF caffe 모드와 동일)"""
+    img = img[..., ::-1].copy()  # RGB → BGR
+    img[..., 0] -= 103.939
+    img[..., 1] -= 116.779
+    img[..., 2] -= 123.68
+    return img
+
 
 @app.post("/visualize/")
 async def visualize_image(file: UploadFile = File(...)):
@@ -102,23 +116,6 @@ async def process_image_crop(file: UploadFile = File(...)):
     })
 
 
-@app.post("/process-image/crop/")
-async def process_cropImage(file: UploadFile = File(...)):
-    image_data = await file.read()
-    image = Image.open(BytesIO(image_data)).convert("RGB")
-    img = load_and_preprocess_image(image)
-
-    features = extract_features(img)  # byte[] , 이미지의 특징점
-    order = extract_feature_means_sort(img)  # 문자열, 크기순으로 정렬된 레이어 번호
-
-    # features를 Base64 문자열로 변환
-    features_base64 = base64.b64encode(features).decode("utf-8")
-
-    return JSONResponse(content={
-        "order": order,
-        "featuresBase64": features_base64,
-    })
-
 def detect_and_crop(image: Image.Image):
     """YOLO로 상품 감지 후 가장 높은 confidence의 객체를 crop하고, 전체 감지 목록도 반환"""
     if yolo_model is None:
@@ -161,38 +158,35 @@ def detect_and_crop(image: Image.Image):
     return cropped, class_name, best_conf, coordinate, all_detections
 
 
-# 2. 이미지 전처리 함수
+# 이미지 전처리 함수
 def load_and_preprocess_image(image: Image.Image):
     img = image.convert("RGB").resize((224, 224))
     img = np.expand_dims(np.array(img, dtype=np.float32), axis=0)
-    img = preprocess_input(img)
+    img = preprocess_input_vgg16(img)
     return img
 
 
-# 3. 각 레이어의 Intensity 값이 큰 순서대로 정렬
+# 각 레이어의 Intensity 값이 큰 순서대로 정렬
 def extract_feature_means_sort(img):
-
-    feature_maps = model.predict(img)  # (1, 14, 14, 512) 형태
+    input_name = session_block5.get_inputs()[0].name
+    feature_maps = session_block5.run(None, {input_name: img})[0]  # (1, 14, 14, 512) 형태
     feature_maps = feature_maps.squeeze()  # (14, 14, 512)로 변환
 
     # 각 레이어의 평균 Intensity 계산
     feature_dict = {
-        # f"{i + 1}": np.mean(feature_maps[:, :, i]) for i in range(512)
         f"{i}": np.mean(feature_maps[:, :, i]) for i in range(512)
     }
 
     # 내림차순 정렬 후 상위 25개 선택
     sorted_features = sorted(feature_dict.items(), key=lambda x: x[1], reverse=True)
     layer_numbers = [int(layer) for layer, _ in sorted_features[:25]]
-    json_data = json.dumps(layer_numbers)
-    print(json_data)
 
     return json.dumps(layer_numbers)  # JSON 문자열 변환 후 반환
 
-# 4. 이미지의 특징점 추출 및 이진화
+# 이미지의 특징점 추출 및 이진화
 def extract_features(img):
-
-    features = base_model.predict(img).flatten()  # 1D 벡터 변환
+    input_name = session_full.get_inputs()[0].name
+    features = session_full.run(None, {input_name: img})[0].flatten()  # 1D 벡터 변환
 
     # 0을 제외한 값들의 평균 계산
     nonzero_features = features[features != 0]
@@ -201,11 +195,10 @@ def extract_features(img):
     # 이진화: 평균 이상이면 1, 미만이면 0
     binary_features = np.where(features >= mean_value, 1, 0)
     binary_bytes = np.packbits(binary_features).tobytes()  # NumPy 배열을 bytes로 변환
-    #print(f" 이진화된 특징점 일부: {binary_features[:100]}")
     return binary_bytes
 
 # static 파일 서빙 (API 라우트 등록 후 마운트해야 가려지지 않음)
-app.mount("/", StaticFiles(directory=os.path.join(BASE_DIR, "static"), html=True), name="static")
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
