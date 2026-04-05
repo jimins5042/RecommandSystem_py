@@ -11,9 +11,7 @@ logging.basicConfig(
 )
 
 import numpy as np
-import torch
-import torch.nn as nn
-from torchvision import models, transforms
+import onnxruntime as ort
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
@@ -22,37 +20,20 @@ from ultralytics import YOLO
 
 logger = logging.getLogger(__name__)
 
-# GPU 사용 가능 여부 확인
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# ── 절대 경로 설정 (환경변수 우선, 기본값은 Docker 경로) ──
+MODEL_DIR = os.getenv("MODEL_DIR", "/app/model")
+STATIC_DIR = os.getenv("STATIC_DIR", "/app/static")
 
-# 1. VGG16 모델 설정 (TensorFlow 대신 PyTorch 사용)
-vgg16 = models.vgg16(weights='IMAGENET1K_V1')
-vgg16.eval()
+# 1. VGG16 ONNX 모델 로드
+ONNX_FULL_PATH = os.path.join(MODEL_DIR, "vgg16_full.onnx")
+ONNX_BLOCK5_PATH = os.path.join(MODEL_DIR, "vgg16_block5_conv3.onnx")
 
-# Keras의 block5_conv3(ReLU 포함)와 유사한 지점까지 자르기
-# vgg16.features[28] is Conv5_3, [29] is ReLU
-model_mid = nn.Sequential(*list(vgg16.features)[:30]).to(device)
-base_extractor = vgg16.features.to(device)
+session_full = ort.InferenceSession(ONNX_FULL_PATH)
+session_block5 = ort.InferenceSession(ONNX_BLOCK5_PATH)
+logger.info(f"VGG16 ONNX models loaded from {MODEL_DIR}")
 
-# PyTorch 이미지 전처리 (TensorFlow Keras VGG16과 동일한 방식 적용)
-def load_and_preprocess_image(image: Image.Image):
-    # RGB -> BGR 변환 및 224x224 리사이즈
-    img = image.convert("RGB").resize((224, 224))
-    img_np = np.array(img, dtype=np.float32)[:, :, ::-1].copy() # RGB to BGR
-    
-    # Keras VGG16 Mean 값 차감 (0~255 스케일 유지)
-    img_np[:, :, 0] -= 103.939 # Blue
-    img_np[:, :, 1] -= 116.779 # Green
-    img_np[:, :, 2] -= 123.68  # Red
-    
-    # PyTorch 텐서로 변환 (H, W, C -> C, H, W)
-    img_tensor = torch.from_numpy(img_np.transpose((2, 0, 1))).unsqueeze(0).to(device)
-    return img_tensor
-
-# 2. YOLO 모델 설정
-# 도커 설정에서 정한 절대 경로(/opt/vgg16/RecommandSystem_py)를 우선 참조
-BASE_DIR = os.environ.get("APP_HOME", os.path.dirname(os.path.abspath(__file__)))
-YOLO_MODEL_PATH = os.path.join(BASE_DIR, "model", "best.pt")
+# 2. YOLO 모델 (상품 객체 인식)
+YOLO_MODEL_PATH = os.path.join(MODEL_DIR, "best.pt")
 YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.5"))
 CLASS_NAMES = ["bag", "sunglasses", "food_drink", "shoes", "clothing"]
 
@@ -73,6 +54,17 @@ else:
         logger.warning(f"YOLO model NOT FOUND. Checked: {YOLO_MODEL_PATH} and {fallback_path}")
 
 app = FastAPI()
+
+
+# ── VGG16 전처리 (TensorFlow preprocess_input 동일) ──
+def preprocess_input_vgg16(img: np.ndarray) -> np.ndarray:
+    """RGB→BGR 변환 후 ImageNet 채널별 평균 차감 (TF caffe 모드와 동일)"""
+    img = img[..., ::-1].copy()  # RGB → BGR
+    img[..., 0] -= 103.939
+    img[..., 1] -= 116.779
+    img[..., 2] -= 123.68
+    return img
+
 
 @app.post("/visualize/")
 async def visualize_image(file: UploadFile = File(...)):
@@ -141,6 +133,7 @@ async def process_image_crop(file: UploadFile = File(...)):
         "featuresBase64": features_base64
     })
 
+
 def detect_and_crop(image: Image.Image):
     if yolo_model is None:
         return image, None, None, None, []
@@ -183,28 +176,44 @@ def detect_and_crop(image: Image.Image):
 
 # (기존 load_and_preprocess_image 함수는 상단에 정의된 것을 사용하도록 수정함)
 
-def extract_feature_means_sort(img_tensor):
-    with torch.no_grad():
-        feature_maps = model_mid(img_tensor).squeeze(0).cpu().numpy()
-    
+# 이미지 전처리 함수
+def load_and_preprocess_image(image: Image.Image):
+    img = image.convert("RGB").resize((224, 224))
+    img = np.expand_dims(np.array(img, dtype=np.float32), axis=0)
+    img = preprocess_input_vgg16(img)
+    return img
+
+
+# 각 레이어의 Intensity 값이 큰 순서대로 정렬
+def extract_feature_means_sort(img):
+    input_name = session_block5.get_inputs()[0].name
+    feature_maps = session_block5.run(None, {input_name: img})[0]  # (1, 14, 14, 512) 형태
+    feature_maps = feature_maps.squeeze()  # (14, 14, 512)로 변환
+
+    # 각 레이어의 평균 Intensity 계산
     feature_dict = {
-        f"{i}": float(np.mean(feature_maps[i, :, :])) for i in range(512)
+        f"{i}": np.mean(feature_maps[:, :, i]) for i in range(512)
     }
 
     sorted_features = sorted(feature_dict.items(), key=lambda x: x[1], reverse=True)
     layer_numbers = [int(layer) for layer, _ in sorted_features[:25]]
-    return json.dumps(layer_numbers)
 
-def extract_features(img_tensor):
-    with torch.no_grad():
-        features = base_extractor(img_tensor).flatten().cpu().numpy()
-    
+    return json.dumps(layer_numbers)  # JSON 문자열 변환 후 반환
+
+# 이미지의 특징점 추출 및 이진화
+def extract_features(img):
+    input_name = session_full.get_inputs()[0].name
+    features = session_full.run(None, {input_name: img})[0].flatten()  # 1D 벡터 변환
+
+    # 0을 제외한 값들의 평균 계산
     nonzero_features = features[features != 0]
     mean_value = np.mean(nonzero_features) if len(nonzero_features) > 0 else 0
     binary_features = np.where(features >= mean_value, 1, 0)
-    return np.packbits(binary_features).tobytes()
+    binary_bytes = np.packbits(binary_features).tobytes()  # NumPy 배열을 bytes로 변환
+    return binary_bytes
 
-app.mount("/", StaticFiles(directory=os.path.join(BASE_DIR, "static"), html=True), name="static")
+# static 파일 서빙 (API 라우트 등록 후 마운트해야 가려지지 않음)
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
