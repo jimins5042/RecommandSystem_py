@@ -1,5 +1,5 @@
 """
-배치 특징점 추출 스크립트
+배치 특징점 추출 스크립트 (PyTorch 버전 - TensorFlow 제거)
 - images_*.csv 에서 이미지 목록 읽기
 - YOLO로 상품 감지 후 crop
 - VGG16 feature 추출 (binary + order) — ONNX Runtime 배치 inference
@@ -36,10 +36,10 @@ YOLO_CONF_THRESHOLD = 0.5
 CLASS_NAMES = ["bag", "sunglasses", "food_drink", "shoes", "clothing"]
 
 if os.path.exists(YOLO_MODEL_PATH):
-    yolo_model = YOLO(YOLO_MODEL_PATH)
+    yolo_model = YOLO(YOLO_MODEL_PATH).to(device)
     logger.info(f"YOLO 모델 로드 완료: {YOLO_MODEL_PATH}")
 else:
-    logger.warning(f"YOLO 모델을 찾을 수 없어 원본 이미지를 그대로 사용합니다: {YOLO_MODEL_PATH}")
+    logger.warning(f"YOLO 모델을 찾을 수 없습니다: {YOLO_MODEL_PATH}")
     yolo_model = None
 
 CSV_DIR = os.path.join(CLASSIFY_DIR, "csv")
@@ -67,12 +67,14 @@ def preprocess_input_vgg16(img: np.ndarray) -> np.ndarray:
     img[..., 2] -= 123.68
     return img
 
-
-def load_and_preprocess(image: Image.Image) -> np.ndarray:
+# Keras VGG16 호환 이미지 전처리
+def load_and_preprocess(image: Image.Image) -> torch.Tensor:
     img = image.convert("RGB").resize((224, 224))
     img = preprocess_input_vgg16(np.array(img, dtype=np.float32))
     return img
 
+BATCH_SIZE = 32
+SPLIT_SIZE = 500
 
 def extract_features_batch(imgs: np.ndarray) -> list[bytes]:
     input_name = session_full.get_inputs()[0].name
@@ -98,7 +100,6 @@ def extract_feature_order_batch(imgs: np.ndarray) -> list[str]:
         results.append(json.dumps(top25))
     return results
 
-
 def find_image_path(image_url: str) -> str | None:
     """image_url (예: /upload/가방/xxx.jpg) → 실제 파일 경로"""
     rel_path = image_url.replace("/upload/", "").lstrip("/")
@@ -107,9 +108,7 @@ def find_image_path(image_url: str) -> str | None:
         return img_path
     return None
 
-
 def crop_image_with_yolo(image: Image.Image) -> Image.Image:
-    """YOLO로 상품 감지 후 가장 높은 confidence의 객체를 crop"""
     if yolo_model is None:
         return image
 
@@ -117,9 +116,8 @@ def crop_image_with_yolo(image: Image.Image) -> Image.Image:
     boxes = results[0].boxes
 
     if boxes is None or len(boxes) == 0:
-        return image  # 감지 안 되면 원본 이미지 반환
+        return image
 
-    # confidence 가장 높은 1개 선택
     best_idx = boxes.conf.argmax().item()
     best_box = boxes.xyxy[best_idx].cpu().numpy().astype(int)
 
@@ -132,9 +130,7 @@ def crop_image_with_yolo(image: Image.Image) -> Image.Image:
 
     return image.crop((x1, y1, x2, y2))
 
-
 def load_image_list() -> list[dict]:
-    """images_*.csv 파일들에서 이미지 목록을 읽어온다"""
     rows = []
     csv_files = sorted(glob.glob(os.path.join(CSV_DIR, "images_*.csv")))
     logger.info(f"images CSV 파일 수: {len(csv_files)}")
@@ -148,9 +144,7 @@ def load_image_list() -> list[dict]:
     logger.info(f"전체 이미지 수: {len(rows)}")
     return rows
 
-
 def get_existing_file_index() -> int:
-    """이미 생성된 features_*.csv 파일 번호 중 가장 큰 값 반환"""
     existing = glob.glob(os.path.join(CSV_DIR, "features_*.csv"))
     if not existing:
         return 0
@@ -163,9 +157,7 @@ def get_existing_file_index() -> int:
             pass
     return max(nums) if nums else 0
 
-
 def get_processed_names() -> set:
-    """이미 처리된 image_uuid 목록"""
     processed = set()
     for csv_path in glob.glob(os.path.join(CSV_DIR, "features_*.csv")):
         with open(csv_path, "r", encoding="utf-8") as f:
@@ -175,7 +167,6 @@ def get_processed_names() -> set:
                 if row:
                     processed.add(row[0])
     return processed
-
 
 def main():
     image_list = load_image_list()
@@ -190,17 +181,13 @@ def main():
     failed = 0
     failed_list = []
 
-    # ── 출력 버퍼 ──
     output_rows = []
-
-    # ── 배치 버퍼 ──
-    batch_imgs = []
-    batch_meta = []  # (image_original_name,) per image
+    batch_tensors = []
+    batch_meta = []
 
     start_time = time.time()
 
     def save_csv_chunk():
-        """output_rows를 500개 단위로 CSV 파일에 저장"""
         nonlocal file_index, output_rows
         while len(output_rows) >= SPLIT_SIZE:
             chunk = output_rows[:SPLIT_SIZE]
@@ -214,24 +201,22 @@ def main():
             logger.info(f"저장: {out_path} ({len(chunk)}건)")
 
     def flush_batch():
-        """배치 inference 후 output_rows에 추가"""
         nonlocal success
-        if not batch_imgs:
+        if not batch_tensors:
             return
 
-        imgs_np = np.stack(batch_imgs, axis=0)
+        imgs_tensor = torch.stack(batch_tensors, dim=0).to(device)
 
-        feat_bytes_list = extract_features_batch(imgs_np)
-        feat_order_list = extract_feature_order_batch(imgs_np)
+        feat_bytes_list = extract_features_batch(imgs_tensor)
+        feat_order_list = extract_feature_order_batch(imgs_tensor)
 
         for meta, feat_bytes, feat_order in zip(batch_meta, feat_bytes_list, feat_order_list):
             feat_b64 = base64.b64encode(feat_bytes).decode("utf-8")
             output_rows.append([meta, feat_b64, feat_order])
             success += 1
 
-        batch_imgs.clear()
+        batch_tensors.clear()
         batch_meta.clear()
-
         save_csv_chunk()
 
     try:
@@ -255,12 +240,12 @@ def main():
 
                 # YOLO를 이용한 가변 Crop
                 cropped = crop_image_with_yolo(image)
-
                 preprocessed = load_and_preprocess(cropped)
-                batch_imgs.append(preprocessed)
-                batch_meta.append(image_uuid)  # 최종 저장은 UUID 사용
+                
+                batch_tensors.append(preprocessed)
+                batch_meta.append(image_uuid)
 
-                if len(batch_imgs) >= BATCH_SIZE:
+                if len(batch_tensors) >= BATCH_SIZE:
                     flush_batch()
 
             except Exception as e:
@@ -276,10 +261,8 @@ def main():
                     f"| {speed:.1f} img/s"
                 )
 
-        # 남은 배치 처리
         flush_batch()
 
-        # 남은 output_rows (500개 미만) 저장
         if output_rows:
             file_index += 1
             out_path = os.path.join(CSV_DIR, f"features_{file_index:03d}.csv")
@@ -306,7 +289,6 @@ def main():
         f"완료! 성공: {success}, 스킵: {skipped}, 실패: {failed} "
         f"| 소요시간: {elapsed:.1f}s ({success / elapsed:.1f} img/s)"
     )
-
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,14 @@
 import json
 import os
 import logging
+import base64
 from io import BytesIO
+
+# 기본 로깅 설정 추가 (로그 출력 보장)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
 
 import numpy as np
 import onnxruntime as ort
@@ -10,7 +17,6 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from ultralytics import YOLO
-import base64
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +37,21 @@ YOLO_MODEL_PATH = os.path.join(MODEL_DIR, "best.pt")
 YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.5"))
 CLASS_NAMES = ["bag", "sunglasses", "food_drink", "shoes", "clothing"]
 
+# 디버깅을 위한 경로 출력
+logger.info(f"YOLO Search Path: {YOLO_MODEL_PATH}")
+
 if os.path.exists(YOLO_MODEL_PATH):
-    yolo_model = YOLO(YOLO_MODEL_PATH)
-    logger.info(f"YOLO model loaded from {YOLO_MODEL_PATH}")
+    yolo_model = YOLO(YOLO_MODEL_PATH).to(device)
+    logger.info(f"YOLO model loaded on {device}")
 else:
-    yolo_model = None
-    logger.warning(f"YOLO model not found at {YOLO_MODEL_PATH}. Running without object detection.")
+    # 하드코딩된 절대 경로를 마지막 수단으로 시도
+    fallback_path = "/opt/vgg16/RecommandSystem_py/model/best.pt"
+    if os.path.exists(fallback_path):
+        yolo_model = YOLO(fallback_path).to(device)
+        logger.info(f"YOLO model loaded via fallback path: {fallback_path}")
+    else:
+        yolo_model = None
+        logger.warning(f"YOLO model NOT FOUND. Checked: {YOLO_MODEL_PATH} and {fallback_path}")
 
 app = FastAPI()
 
@@ -53,38 +68,43 @@ def preprocess_input_vgg16(img: np.ndarray) -> np.ndarray:
 
 @app.post("/visualize/")
 async def visualize_image(file: UploadFile = File(...)):
-    image_data = await file.read()
-    image = Image.open(BytesIO(image_data)).convert("RGB")
+    if yolo_model is None:
+        return JSONResponse(status_code=500, content={"error": "YOLO model not loaded. Check model path."})
 
-    results = yolo_model.predict(np.array(image), conf=YOLO_CONF_THRESHOLD, verbose=False)
-    boxes = results[0].boxes
+    try:
+        image_data = await file.read()
+        image = Image.open(BytesIO(image_data)).convert("RGB")
 
-    detections = []
-    if boxes is not None and len(boxes) > 0:
-        for box in boxes:
-            b = box.xyxy[0].cpu().numpy()
-            detections.append({
-                "class": CLASS_NAMES[int(box.cls[0].item())] if int(box.cls[0].item()) < len(CLASS_NAMES) else "unknown",
-                "confidence": round(box.conf[0].item(), 4),
-                "coordinate": [int(b[0]), int(b[1]), int(b[2]), int(b[3])]
-            })
+        results = yolo_model.predict(np.array(image), conf=YOLO_CONF_THRESHOLD, verbose=False)
+        boxes = results[0].boxes
 
-    return JSONResponse(content={"detections": detections})
+        detections = []
+        if boxes is not None and len(boxes) > 0:
+            for box in boxes:
+                b = box.xyxy[0].cpu().numpy()
+                detections.append({
+                    "class": CLASS_NAMES[int(box.cls[0].item())] if int(box.cls[0].item()) < len(CLASS_NAMES) else "unknown",
+                    "confidence": round(box.conf[0].item(), 4),
+                    "coordinate": [int(b[0]), int(b[1]), int(b[2]), int(b[3])]
+                })
+
+        return JSONResponse(content={"detections": detections})
+    except Exception as e:
+        logger.error(f"Prediction error: {str(e)}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/process-image/")
 async def process_image(file: UploadFile = File(...)):
     image_data = await file.read()
     image = Image.open(BytesIO(image_data)).convert("RGB")
 
-    # YOLO 객체 인식 → crop
     cropped_image, detectedClass, confidence, coordinate, all_detections = detect_and_crop(image)
 
-    img = load_and_preprocess_image(cropped_image)
+    img_tensor = load_and_preprocess_image(cropped_image)
 
-    features = extract_features(img)  # byte[] , 이미지의 특징점
-    order = extract_feature_means_sort(img)  # 문자열, 크기순으로 정렬된 레이어 번호
+    features = extract_features(img_tensor)
+    order = extract_feature_means_sort(img_tensor)
 
-    # features를 Base64 문자열로 변환
     features_base64 = base64.b64encode(features).decode("utf-8")
 
     return JSONResponse(content={
@@ -101,13 +121,11 @@ async def process_image_crop(file: UploadFile = File(...)):
     image_data = await file.read()
     image = Image.open(BytesIO(image_data)).convert("RGB")
 
-    # 이미 크롭된 이미지이므로 YOLO 감지 과정을 생략하여 속도 향상
-    img = load_and_preprocess_image(image)
+    img_tensor = load_and_preprocess_image(image)
 
-    features = extract_features(img)
-    order = extract_feature_means_sort(img)
+    features = extract_features(img_tensor)
+    order = extract_feature_means_sort(img_tensor)
 
-    # features를 Base64 문자열로 변환
     features_base64 = base64.b64encode(features).decode("utf-8")
 
     return JSONResponse(content={
@@ -117,7 +135,6 @@ async def process_image_crop(file: UploadFile = File(...)):
 
 
 def detect_and_crop(image: Image.Image):
-    """YOLO로 상품 감지 후 가장 높은 confidence의 객체를 crop하고, 전체 감지 목록도 반환"""
     if yolo_model is None:
         return image, None, None, None, []
 
@@ -127,7 +144,6 @@ def detect_and_crop(image: Image.Image):
     if boxes is None or len(boxes) == 0:
         return image, None, None, None, []
 
-    # 전체 감지 결과
     w, h = image.size
     all_detections = []
     for box in boxes:
@@ -139,14 +155,15 @@ def detect_and_crop(image: Image.Image):
             "coordinate": [int(max(0, b[0])), int(max(0, b[1])), int(min(w, b[2])), int(min(h, b[3]))]
         })
 
-    # confidence 가장 높은 1개 선택
     best_idx = boxes.conf.argmax().item()
     best_box = boxes.xyxy[best_idx].cpu().numpy().astype(int)
     best_conf = boxes.conf[best_idx].item()
     best_cls = int(boxes.cls[best_idx].item())
     class_name = CLASS_NAMES[best_cls] if best_cls < len(CLASS_NAMES) else "unknown"
 
-    # crop (경계 클리핑)
+    if len(all_detections) > best_idx:
+        all_detections.pop(best_idx)
+
     x1, y1 = max(0, best_box[0]), max(0, best_box[1])
     x2, y2 = min(w, best_box[2]), min(h, best_box[3])
     cropped = image.crop((x1, y1, x2, y2))
@@ -157,6 +174,7 @@ def detect_and_crop(image: Image.Image):
     coordinate = [int(x1), int(y1), int(x2), int(y2)]
     return cropped, class_name, best_conf, coordinate, all_detections
 
+# (기존 load_and_preprocess_image 함수는 상단에 정의된 것을 사용하도록 수정함)
 
 # 이미지 전처리 함수
 def load_and_preprocess_image(image: Image.Image):
@@ -177,7 +195,6 @@ def extract_feature_means_sort(img):
         f"{i}": np.mean(feature_maps[:, :, i]) for i in range(512)
     }
 
-    # 내림차순 정렬 후 상위 25개 선택
     sorted_features = sorted(feature_dict.items(), key=lambda x: x[1], reverse=True)
     layer_numbers = [int(layer) for layer, _ in sorted_features[:25]]
 
@@ -191,8 +208,6 @@ def extract_features(img):
     # 0을 제외한 값들의 평균 계산
     nonzero_features = features[features != 0]
     mean_value = np.mean(nonzero_features) if len(nonzero_features) > 0 else 0
-
-    # 이진화: 평균 이상이면 1, 미만이면 0
     binary_features = np.where(features >= mean_value, 1, 0)
     binary_bytes = np.packbits(binary_features).tobytes()  # NumPy 배열을 bytes로 변환
     return binary_bytes
