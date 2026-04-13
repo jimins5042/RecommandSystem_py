@@ -48,6 +48,7 @@
             font-weight: 800;
             background: linear-gradient(135deg, #0f172a, #4f46e5);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 0.5rem;
             letter-spacing: -0.02em;
@@ -355,6 +356,37 @@
                 </div>
             </div>
 
+            <div style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.8rem; background: rgba(79, 70, 229, 0.03); padding: 1rem; border-radius: 12px; border: 1px solid rgba(79, 70, 229, 0.1);">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="rembg-toggle" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <label for="rembg-toggle" style="font-size: 0.95rem; color: var(--text-main); cursor: pointer; font-weight: 600;">
+                        배경 제거(rembg) 활성화
+                    </label>
+                </div>
+
+                <div id="rembg-options" style="display: flex; flex-direction: column; gap: 0.6rem; padding-left: 1.6rem; border-left: 2px solid rgba(79, 70, 229, 0.1);">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">모델 선택 (Model)</label>
+                        <select id="rembg-model" style="padding: 0.4rem; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; background: white;">
+                            <option value="birefnet-general">birefnet-general (최고 품질/매우 무거움)</option>
+                            <option value="birefnet-general-lite" selected>birefnet-general-lite (품질/속도 균형)</option>
+                            <option value="isnet-general-use">isnet-general-use (무난함/추천)</option>
+                            <option value="u2net">u2net (기본)</option>
+                            <option value="silueta">silueta (매우 빠름)</option>
+                            <option value="u2net_cloth_seg">u2net_cloth_seg (의류)</option>
+                            <option value="birefnet-portrait">birefnet-portrait (인물 특화)</option>
+                        </select>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="rembg-alpha" style="width: 15px; height: 15px; cursor: pointer;">
+                        <label for="rembg-alpha" style="font-size: 0.85rem; color: var(--text-main); cursor: pointer;">
+                            Alpha Matting 적용 (정밀한 테두리)
+                        </label>
+                    </div>
+                </div>
+            </div>
+
             <button class="analyze-btn" id="analyze-btn" onclick="analyze()">
                 <span class="spinner" id="spinner"></span>
                 <span id="btn-text">이미지 분석 시작</span>
@@ -419,6 +451,14 @@
 
         fileInput.addEventListener('change', handleFileSelect);
 
+        const rembgToggle = document.getElementById('rembg-toggle');
+        const rembgOptions = document.getElementById('rembg-options');
+
+        rembgToggle.addEventListener('change', () => {
+            rembgOptions.style.opacity = rembgToggle.checked ? '1' : '0.4';
+            rembgOptions.style.pointerEvents = rembgToggle.checked ? 'auto' : 'none';
+        });
+
         function handleFileSelect() {
             if (fileInput.files.length > 0) {
                 selectedFile = fileInput.files[0];
@@ -441,10 +481,20 @@
             analyzeBtn.disabled = true;
 
             try {
+                const useRembg = document.getElementById('rembg-toggle').checked;
+                const model = document.getElementById('rembg-model').value;
+                const alpha = document.getElementById('rembg-alpha').checked;
+                
                 const form = new FormData();
                 form.append('file', selectedFile);
 
-                const res = await fetch('/visualize/', { method: 'POST', body: form });
+                const queryParams = new URLSearchParams({
+                    use_rembg: useRembg,
+                    model: model,
+                    alpha_matting: alpha
+                });
+
+                const res = await fetch(`/visualize/?${queryParams.toString()}`, { method: 'POST', body: form });
                 if (!res.ok) throw new Error('API 응답 에러');
                 const data = await res.json();
 
@@ -456,7 +506,12 @@
                     canvasWrap.style.display = 'flex';
                     drawBoxes(img, data.detections);
                 };
-                img.src = URL.createObjectURL(selectedFile);
+                
+                if (data.rembgImage) {
+                    img.src = `data:image/png;base64,${data.rembgImage}`;
+                } else {
+                    img.src = URL.createObjectURL(selectedFile);
+                }
             } catch (error) {
                 alert('분석에 실패했습니다. 서버를 확인해주세요.');
                 console.error(error);

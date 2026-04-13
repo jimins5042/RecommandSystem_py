@@ -11,7 +11,6 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from ultralytics import YOLO
 import base64
-from rembg import remove, new_session
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,7 +35,6 @@ logger.info(f"VGG16 ONNX models loaded from {MODEL_DIR}")
 
 # 2. YOLO 모델 (상품 객체 인식)
 YOLO_MODEL_PATH = os.path.join(MODEL_DIR, "best.pt")
-
 YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.5"))
 CLASS_NAMES = ["bag", "sunglasses", "food_drink", "shoes", "clothing"]
 
@@ -46,15 +44,6 @@ if os.path.exists(YOLO_MODEL_PATH):
 else:
     yolo_model = None
     logger.warning(f"YOLO model not found at {YOLO_MODEL_PATH}. Running without object detection.")
-
-# rembg 세션 캐시 (모델별로 한 번만 로드)
-rembg_sessions = {}
-
-def get_rembg_session(model_name: str):
-    if model_name not in rembg_sessions:
-        logger.info(f"rembg 새로운 세션 생성: {model_name}")
-        rembg_sessions[model_name] = new_session(model_name)
-    return rembg_sessions[model_name]
 
 app = FastAPI()
 
@@ -70,35 +59,13 @@ def preprocess_input_vgg16(img: np.ndarray) -> np.ndarray:
 
 
 @app.post("/visualize/")
-async def visualize_image(
-    file: UploadFile = File(...), 
-    use_rembg: bool = True, 
-    model: str = "u2net",
-    alpha_matting: bool = False
-):
-    logger.info(f"[visualize] 요청 수신: {file.filename}, rembg={use_rembg}, model={model}, alpha={alpha_matting}")
+async def visualize_image(file: UploadFile = File(...)):
+    logger.info(f"[visualize] 요청 수신: {file.filename}")
     image_data = await file.read()
     image = Image.open(BytesIO(image_data)).convert("RGB")
+    logger.info(f"[visualize] 이미지 크기: {image.size}")
 
-    processed_image = image
-    rembg_base64 = None
-
-    if use_rembg:
-        # 배경 제거 (RGBA 반환)
-        session = get_rembg_session(model)
-        image_rgba = remove(image, session=session, alpha_matting=alpha_matting)
-        # 시각화용 PNG (Base64)
-        buffered = BytesIO()
-        image_rgba.save(buffered, format="PNG")
-        rembg_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-        
-        # YOLO 입력용 RGB 변환 (흰색 배경)
-        processed_image = Image.new("RGB", image_rgba.size, (255, 255, 255))
-        processed_image.paste(image_rgba, mask=image_rgba.split()[3])
-
-    logger.info(f"[visualize] 이미지 크기: {processed_image.size}")
-
-    results = yolo_model.predict(np.array(processed_image), conf=YOLO_CONF_THRESHOLD, verbose=False)
+    results = yolo_model.predict(np.array(image), conf=YOLO_CONF_THRESHOLD, verbose=False)
     boxes = results[0].boxes
 
     detections = []
@@ -112,30 +79,17 @@ async def visualize_image(
             })
 
     logger.info(f"[visualize] 감지 결과: {len(detections)}개 객체")
-    return JSONResponse(content={
-        "detections": detections,
-        "rembgImage": rembg_base64  # 배경 제거된 이미지를 클라이언트에 전달
-    })
+    return JSONResponse(content={"detections": detections})
 
 @app.post("/process-image/")
-async def process_image(
-    file: UploadFile = File(...), 
-    use_rembg: bool = False,
-    model: str = "u2net",
-    alpha_matting: bool = False
-):
-    logger.info(f"[process-image] 요청 수신: {file.filename}, rembg={use_rembg}, model={model}, alpha={alpha_matting}")
+async def process_image(file: UploadFile = File(...)):
+    logger.info(f"[process-image] 요청 수신: {file.filename}")
     image_data = await file.read()
     image = Image.open(BytesIO(image_data)).convert("RGB")
     logger.info(f"[process-image] 이미지 크기: {image.size}")
 
     # YOLO 객체 인식 → crop
-    cropped_image, detectedClass, confidence, coordinate, all_detections = detect_and_crop(
-        image, 
-        use_rembg=use_rembg,
-        model=model,
-        alpha_matting=alpha_matting
-    )
+    cropped_image, detectedClass, confidence, coordinate, all_detections = detect_and_crop(image)
     logger.info(f"[process-image] YOLO 감지: class={detectedClass}, confidence={confidence}, detections={len(all_detections)}개")
 
     img = load_and_preprocess_image(cropped_image)
@@ -179,21 +133,12 @@ async def process_image_crop(file: UploadFile = File(...)):
     })
 
 
-def detect_and_crop(image: Image.Image, use_rembg: bool = False, model: str = "u2net", alpha_matting: bool = False):
+def detect_and_crop(image: Image.Image):
     """YOLO로 상품 감지 후 가장 높은 confidence의 객체를 crop하고, 전체 감지 목록도 반환"""
     if yolo_model is None:
         return image, None, None, None, []
 
-    # 배경 제거 옵션 적용
-    processed_image = image
-    if use_rembg:
-        session = get_rembg_session(model)
-        image_rgba = remove(image, session=session, alpha_matting=alpha_matting)
-        # YOLO용 RGB 변환 (흰색 배경)
-        processed_image = Image.new("RGB", image_rgba.size, (255, 255, 255))
-        processed_image.paste(image_rgba, mask=image_rgba.split()[3])
-
-    results = yolo_model.predict(np.array(processed_image), conf=YOLO_CONF_THRESHOLD, verbose=False)
+    results = yolo_model.predict(np.array(image), conf=YOLO_CONF_THRESHOLD, verbose=False)
     boxes = results[0].boxes
 
     if boxes is None or len(boxes) == 0:
