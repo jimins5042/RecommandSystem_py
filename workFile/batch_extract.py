@@ -2,148 +2,123 @@
 배치 특징점 추출 스크립트 (멀티프로세스 병렬 처리)
 - images_*.csv 에서 이미지 목록 읽기
 - YOLO로 상품 감지 후 crop
-- EfficientNet-B0 feature 추출 (binary + order + embedding)
+- EfficientNet-B0 feature 추출 — backbones/ 패키지 재사용
   Stage 1 (order)         : 7x7x320 → GAP → Top-25 인덱스
   Stage 2 (featuresBase64): 1280D  → 평균 이진화 → 160 byte
   Stage 3 (embedding)     : 1280D  → float16 → 2560 byte (Cosine 재정렬용)
 - NUM_WORKERS 프로세스 병렬 처리
 - CSV로 저장 (500개 단위 분할)
-"""
 
-import json
-import os
+실행:
+  python workFile/batch_extract.py       # 프로젝트 루트에서
+"""
+from __future__ import annotations
+
+# ── 프로젝트 루트를 sys.path 에 추가 (스크립트 직접 실행 지원) ──
+import sys
+from pathlib import Path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+import base64
 import csv
 import glob
 import logging
-import base64
-import time
 import multiprocessing as mp
+import os
+import time
 
 import numpy as np
-import onnxruntime as ort
 from PIL import Image
 from ultralytics import YOLO
 
-# ── 설정 ──
-CLASSIFY_DIR = os.getenv("CLASSIFY_DIR", "C:\\Users\\coolc\\OneDrive\\Desktop\\marqvision\\classify")
-IMG_DIR      = os.getenv("IMG_DIR",      "C:\\Users\\coolc\\IdeaProjects\\RecommendSystem\\src\\main\\resources\\upload")
+from config import (
+    CLASSIFY_DIR,
+    IMG_DIR,
+    KOREAN_TO_EN,
+    MODEL_DIR,
+    NUM_WORKERS,
+    YOLO_CONF_THRESHOLD,
+)
+from api.efficientnet_b0 import EfficientNetB0Backbone
 
-MODEL_DIR = os.getenv("MODEL_DIR", "C:\\Users\\coolc\\PycharmProjects\\recommandSystem-py\\model")
-STATIC_DIR = os.getenv("STATIC_DIR", "C:\\Users\\coolc\\PycharmProjects\\recommandSystem-py\\static")
-
-NUM_WORKERS  = int(os.getenv("NUM_WORKERS", "6"))
-
-YOLO_CONF_THRESHOLD = 0.5
-SPLIT_SIZE          = 500
-
-CSV_DIR  = os.path.join(CLASSIFY_DIR, "csv")
-
-EFFICIENTNET_PATH   = os.path.join(MODEL_DIR, "efficientnet-b0-feat.onnx")
-EFFICIENTNET_STAGE1 = "/features/features.7/features.7.0/block/block.3/block.3.0/Conv_output_0"
-EFFICIENTNET_STAGE2 = "/Flatten_output_0"
-
-# ── EfficientNet-B0 전처리 상수 (모든 프로세스에서 공유) ──
-_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
-_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
+SPLIT_SIZE = 500
+CSV_DIR    = os.path.join(CLASSIFY_DIR, "csv")
 
 
 # ════════════════════════════════════════
-# 공유 유틸
+# 경로 해석
 # ════════════════════════════════════════
 
-def load_and_preprocess(image: Image.Image) -> np.ndarray:
-    """PIL Image → CHW float32 [3,224,224], ImageNet 정규화"""
-    img = np.array(image.convert("RGB").resize((224, 224)), dtype=np.float32) / 255.0
-    img = np.transpose(img, (2, 0, 1))
-    return ((img - _MEAN) / _STD).astype(np.float32)
-
-
-def extract_single(stage1_map: np.ndarray, emb: np.ndarray) -> tuple[str, bytes, bytes]:
-    """
-    추론 결과 1장을 Stage1/2/3 feature로 변환.
-    stage1_map : (320, 7, 7)
-    emb        : (1280,)
-    """
-    channel_scores = stage1_map.mean(axis=(1, 2))
-    top25 = np.argsort(channel_scores)[::-1][:25].tolist()
-
-    nonzero = emb[emb != 0]
-    mean_val = np.mean(nonzero) if len(nonzero) > 0 else 0.0
-    binary = np.where(emb >= mean_val, 1, 0)
-    feature_bytes = np.packbits(binary).tobytes()
-
-    embedding_bytes = emb.astype(np.float16).tobytes()
-
-    return json.dumps(top25), feature_bytes, embedding_bytes
+def _resolve_image_path(image_url: str) -> str:
+    """image_url (예: /upload/가방/xxx.jpg) → 실제 로컬 파일 경로."""
+    rel_path = image_url.replace("/upload/", "").lstrip("/")
+    for ko, en in KOREAN_TO_EN.items():
+        rel_path = rel_path.replace(ko, en)
+    return os.path.join(IMG_DIR, rel_path)
 
 
 # ════════════════════════════════════════
 # 워커 프로세스
 # ════════════════════════════════════════
 
-# 워커별 전역 (initializer에서 세팅)
-_w_session = None
-_w_yolo    = None
+# 워커별 전역 (initializer 에서 세팅). fork 시 복제 방지 위해 None 시작.
+_w_backbone: EfficientNetB0Backbone | None = None
+_w_yolo:     YOLO | None = None
 
 
-def _worker_init(model_dir: str, img_dir: str):
-    """각 워커 프로세스 시작 시 1회 실행 — 모델 로드"""
-    global _w_session, _w_yolo, IMG_DIR
+def _worker_init(model_dir: str):
+    """각 워커 프로세스 시작 시 1회 실행 — 모델 로드."""
+    global _w_backbone, _w_yolo
 
-    IMG_DIR = img_dir
-
-    _w_session = ort.InferenceSession(os.path.join(model_dir, "efficientnet-b0-feat.onnx"))
+    _w_backbone = EfficientNetB0Backbone(model_dir)
+    if not _w_backbone.is_loaded():
+        raise RuntimeError(f"EfficientNet-B0 ONNX 모델을 찾을 수 없습니다: {model_dir}")
 
     yolo_path = os.path.join(model_dir, "best.pt")
-    if os.path.exists(yolo_path):
-        _w_yolo = YOLO(yolo_path)
+    _w_yolo = YOLO(yolo_path) if os.path.exists(yolo_path) else None
+
+
+def _crop_with_yolo(image: Image.Image) -> Image.Image:
+    """YOLO 로 confidence 최고 박스만 crop. 미로드/미검출 시 원본."""
+    if _w_yolo is None:
+        return image
+    results = _w_yolo.predict(np.array(image), conf=YOLO_CONF_THRESHOLD, verbose=False)
+    boxes = results[0].boxes
+    if boxes is None or len(boxes) == 0:
+        return image
+    best_idx = boxes.conf.argmax().item()
+    best_box = boxes.xyxy[best_idx].cpu().numpy().astype(int)
+    w, h = image.size
+    x1, y1 = max(0, best_box[0]), max(0, best_box[1])
+    x2, y2 = min(w, best_box[2]), min(h, best_box[3])
+    if x2 <= x1 or y2 <= y1:
+        return image
+    return image.crop((x1, y1, x2, y2))
 
 
 def _worker_process(row: dict) -> dict:
-    """이미지 1장 처리 — 워커 프로세스에서 실행"""
+    """이미지 1장 처리 — 워커 프로세스에서 실행."""
     image_uuid = row["image_uuid"]
     image_url  = row["image_url"]
     image_name = row.get("image_original_name", image_uuid)
 
-    rel_path = (image_url.replace("/upload/", "").lstrip("/").replace("가방", "bag").replace("선글라스", "sunglass").replace("식음료", "food").replace("신발", "shoes").replace("의류", "clothes"))  
-    img_path = os.path.join(IMG_DIR, rel_path)
-    print(img_path)
-
+    img_path = _resolve_image_path(image_url)
     if not os.path.exists(img_path):
         return {"status": "failed", "uuid": image_uuid, "name": image_name, "reason": "이미지 파일 없음"}
 
     try:
-        image = Image.open(img_path).convert("RGB")
-
-        # YOLO crop
-        if _w_yolo is not None:
-            results = _w_yolo.predict(np.array(image), conf=YOLO_CONF_THRESHOLD, verbose=False)
-            boxes = results[0].boxes
-            if boxes is not None and len(boxes) > 0:
-                best_idx = boxes.conf.argmax().item()
-                best_box = boxes.xyxy[best_idx].cpu().numpy().astype(int)
-                w, h = image.size
-                x1 = max(0, best_box[0]);  y1 = max(0, best_box[1])
-                x2 = min(w, best_box[2]);  y2 = min(h, best_box[3])
-                if x2 > x1 and y2 > y1:
-                    image = image.crop((x1, y1, x2, y2))
-
-        # 전처리 + 추론
-        img_array = np.expand_dims(load_and_preprocess(image), axis=0)  # (1,3,224,224)
-        input_name = _w_session.get_inputs()[0].name
-        stage1_maps, embeddings = _w_session.run(
-            [EFFICIENTNET_STAGE1, EFFICIENTNET_STAGE2],
-            {input_name: img_array}
-        )
-
-        order, feat_bytes, emb_bytes = extract_single(stage1_maps[0], embeddings[0])
+        image   = Image.open(img_path).convert("RGB")
+        cropped = _crop_with_yolo(image)
+        output  = _w_backbone.extract(cropped)
 
         return {
             "status":   "ok",
             "uuid":     image_uuid,
-            "feat_b64": base64.b64encode(feat_bytes).decode(),
-            "order":    order,
-            "emb_b64":  base64.b64encode(emb_bytes).decode(),
+            "feat_b64": base64.b64encode(output.features_bytes).decode(),
+            "order":    output.order,
+            "emb_b64":  base64.b64encode(output.embedding_bytes or b"").decode(),
         }
 
     except Exception as e:
@@ -206,7 +181,7 @@ def main():
 
     file_index  = get_existing_file_index()
     output_rows = []
-    success = skipped = failed = 0
+    success = failed = 0
     failed_list = []
     start_time = time.time()
 
@@ -228,7 +203,7 @@ def main():
     with mp.Pool(
         processes=NUM_WORKERS,
         initializer=_worker_init,
-        initargs=(MODEL_DIR, IMG_DIR),
+        initargs=(MODEL_DIR,),
     ) as pool:
         for result in pool.imap_unordered(_worker_process, todo, chunksize=NUM_WORKERS * 4):
             if result["status"] == "ok":

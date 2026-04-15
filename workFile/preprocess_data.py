@@ -15,30 +15,32 @@ LabelMe JSON → YOLO 포맷 변환 + train/val 분할 스크립트
         └── val/
 """
 
+import sys
+from pathlib import Path
+
+# 프로젝트 루트를 sys.path 에 추가 (스크립트 직접 실행 지원)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 import json
 import os
 import shutil
 import random
-from pathlib import Path
 
-# ──────────────────────────────────────────────
-# 설정
-# ──────────────────────────────────────────────
-SOURCE_DIR = Path(r"C:\Users\coolc\OneDrive\Desktop\marqvision\file")
-OUTPUT_DIR = Path(r"C:\Users\coolc\PycharmProjects\recommandSystem-py\yolo_dataset")
+from config import CLASS_NAMES, OUTPUT_DIR, SOURCE_DIR
+
 VAL_RATIO = 0.2  # 검증 데이터 비율
 SEED = 42
 
-# 클래스 매핑 (파일명 접두사 → class_id)
+# 파일명 접두사 [한글 카테고리] → class_id (CLASS_NAMES 순서와 매칭)
 CLASS_MAP = {
-    "가방": 0,
-    "선글라스": 1,
-    "식음료": 2,
-    "신발": 3,
-    "의류": 4,
+    "가방":   CLASS_NAMES.index("bag"),
+    "선글라스": CLASS_NAMES.index("sunglasses"),
+    "식음료":  CLASS_NAMES.index("food_drink"),
+    "신발":   CLASS_NAMES.index("shoes"),
+    "의류":   CLASS_NAMES.index("clothing"),
 }
-
-CLASS_NAMES = ["bag", "sunglasses", "food_drink", "shoes", "clothing"]
 
 
 def create_dirs():
