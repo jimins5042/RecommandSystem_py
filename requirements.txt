@@ -1,4 +1,3 @@
-opencv-python-headless
 fastapi
 uvicorn[standard]
 onnxruntime
@@ -6,3 +5,4 @@ numpy
 pillow
 python-multipart
 ultralytics
+rembg

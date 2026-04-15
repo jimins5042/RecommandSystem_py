@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls /mnt/c/Users/coolc/PycharmProjects/recommandSystem-py/*.pt)"
+      "Bash(ls /mnt/c/Users/coolc/PycharmProjects/recommandSystem-py/*.pt)",
+      "Bash(mkdir -p web)",
+      "Bash(mv main.py vgg16.py efficientNet.py shared.py web/)"
     ]
   }
 }
