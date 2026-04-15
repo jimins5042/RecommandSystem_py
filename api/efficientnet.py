@@ -21,7 +21,7 @@ _STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
 
 
 class EfficientNetB0Backbone(Backbone):
-    name = "efficientnet-b0"
+    name = "efficientnet"
     display_name = "EfficientNet-B0"
 
     # build_feature_model.py 에서 노출한 중간 출력 노드 이름

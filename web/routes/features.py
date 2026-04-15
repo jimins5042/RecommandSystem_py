@@ -31,7 +31,7 @@ def _get_backbone_or_404(name: str) -> Backbone:
     return backbone
 
 
-@router.get("/backbones")
+@router.get("")
 async def list_backbones():
     """등록된 백본 목록과 로드 상태."""
     return [
@@ -45,7 +45,7 @@ async def list_backbones():
     ]
 
 
-@router.post("/backbones/{name}/process-image/")
+@router.post("/{name}/process-image/")
 async def process_image(
     name: str,
     file: UploadFile = File(...),
@@ -73,7 +73,7 @@ async def process_image(
     })
 
 
-@router.post("/backbones/{name}/process-image/crop/")
+@router.post("/{name}/process-image/crop/")
 async def process_image_crop(name: str, file: UploadFile = File(...)):
     backbone = _get_backbone_or_404(name)
     logger.info(f"[{name}/process-image/crop] 요청 수신: {file.filename}")

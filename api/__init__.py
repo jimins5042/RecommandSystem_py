@@ -12,7 +12,7 @@ import logging
 from config import MODEL_DIR
 
 from api.base import Backbone, BackboneOutput
-from api.efficientnet_b0 import EfficientNetB0Backbone
+from api.efficientnet import EfficientNetB0Backbone
 from api.vgg16 import VGG16Backbone
 
 logger = logging.getLogger(__name__)

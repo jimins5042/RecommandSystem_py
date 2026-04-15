@@ -41,7 +41,7 @@ from config import (
     NUM_WORKERS,
     YOLO_CONF_THRESHOLD,
 )
-from api.efficientnet_b0 import EfficientNetB0Backbone
+from api.efficientnet import EfficientNetB0Backbone
 
 SPLIT_SIZE = 500
 CSV_DIR    = os.path.join(CLASSIFY_DIR, "csv")

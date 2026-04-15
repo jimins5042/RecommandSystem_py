@@ -14,6 +14,10 @@ FastAPI 앱 엔트리포인트.
   POST /visualize/                               # YOLO + rembg (백본 독립)
 """
 import logging
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import uvicorn
 from fastapi import FastAPI
@@ -34,7 +38,7 @@ app = FastAPI(
 
 # 라우터 등록
 app.include_router(visualize.router)
-app.include_router(features.router)
+app.include_router(features.router, prefix="/api")
 app.include_router(compare.router)
 
 # 정적 파일은 마지막에 마운트 (API 라우트가 가려지지 않도록)
