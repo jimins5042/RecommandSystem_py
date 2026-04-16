@@ -7,331 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-color: #f8fafc;
-            --panel-bg: rgba(255, 255, 255, 0.85);
-            --border-color: rgba(0, 0, 0, 0.06);
-            --accent-color: #4f46e5;
-            --accent-hover: #4338ca;
-            --text-main: #1e293b;
-            --text-muted: #64748b;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            background-image: 
-                radial-gradient(circle at 15% 10%, rgba(79, 70, 229, 0.06) 0%, transparent 40%),
-                radial-gradient(circle at 85% 90%, rgba(14, 165, 233, 0.06) 0%, transparent 40%);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            padding: 2rem;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 2.5rem;
-            animation: fadeInDown 0.8s ease-out;
-        }
-
-        .header h1 {
-            font-size: 2.8rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #0f172a, #4f46e5);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5rem;
-            letter-spacing: -0.02em;
-        }
-
-        .header p {
-            color: var(--text-muted);
-            font-size: 1.1rem;
-        }
-
-        .main-layout {
-            display: grid;
-            grid-template-columns: 380px 1fr;
-            gap: 2rem;
-            max-width: 1400px;
-            margin: 0 auto;
-            width: 100%;
-            flex: 1;
-            animation: fadeIn 1s ease-out;
-        }
-
-        .panel {
-            background: var(--panel-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 1.8rem;
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.08);
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Upload styling */
-        .upload-area {
-            border: 2px dashed rgba(79, 70, 229, 0.3);
-            border-radius: 14px;
-            padding: 2.5rem 1rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            background: rgba(79, 70, 229, 0.02);
-            margin-bottom: 1.5rem;
-            overflow: hidden;
-        }
-
-        .upload-area::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(45deg, transparent, rgba(79, 70, 229, 0.05), transparent);
-            transform: translateX(-100%);
-            transition: transform 0.5s;
-        }
-
-        .upload-area:hover::before {
-            transform: translateX(100%);
-        }
-
-        .upload-area:hover, .upload-area.dragover {
-            border-color: var(--accent-hover);
-            background: rgba(79, 70, 229, 0.06);
-            transform: translateY(-2px);
-        }
-
-        .upload-area input[type=file] {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            opacity: 0; cursor: pointer;
-            z-index: 10;
-        }
-
-        .upload-area svg {
-            width: 54px;
-            height: 54px;
-            fill: none;
-            stroke: var(--accent-color);
-            stroke-width: 1.5;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-            margin-bottom: 1rem;
-            transition: transform 0.3s;
-        }
-
-        .upload-area:hover svg {
-            transform: scale(1.1);
-        }
-
-        .upload-text {
-            font-size: 1rem;
-            color: var(--text-muted);
-            line-height: 1.5;
-        }
-
-        .upload-text strong {
-            color: var(--accent-hover);
-            font-weight: 600;
-        }
-
-        #file-name {
-            display: block;
-            margin-top: 0.5rem;
-            font-size: 0.85rem;
-            color: #475569;
-            word-break: break-all;
-        }
-
-        button.analyze-btn {
-            background: linear-gradient(135deg, var(--accent-color), #6366f1);
-            color: white;
-            border: none;
-            padding: 1.1rem;
-            font-size: 1.05rem;
-            font-weight: 600;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.25);
-        }
-
-        button.analyze-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(79, 70, 229, 0.35);
-            background: linear-gradient(135deg, var(--accent-hover), var(--accent-color));
-        }
-
-        button.analyze-btn:active {
-            transform: translateY(0);
-        }
-
-        button.analyze-btn:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Results / JSON */
-        .results-section {
-            margin-top: 2rem;
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-        }
-
-        .results-header {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-main);
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .results-header svg {
-            width: 20px;
-            height: 20px;
-            stroke: var(--accent-color);
-        }
-
-        #json-output {
-            background: #f1f5f9;
-            color: #059669;
-            padding: 1.2rem;
-            border-radius: 12px;
-            overflow-y: auto;
-            flex: 1;
-            font-family: 'JetBrains Mono', 'Courier New', Courier, monospace;
-            font-size: 0.85rem;
-            line-height: 1.5;
-            max-height: 400px;
-            white-space: pre-wrap;
-            border: 1px solid rgba(0,0,0,0.05);
-            box-shadow: inset 0 2px 5px rgba(0,0,0,0.02);
-            font-weight: 500;
-        }
-
-        #json-output::-webkit-scrollbar {
-            width: 8px;
-        }
-        #json-output::-webkit-scrollbar-track {
-            background: #f1f5f9;
-            border-radius: 8px;
-        }
-        #json-output::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 8px;
-        }
-
-        /* Canvas area */
-        .preview-panel {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            min-height: 500px;
-            position: relative;
-            background: rgba(248, 250, 252, 0.5);
-        }
-
-        .placeholder-text {
-            color: var(--text-muted);
-            font-size: 1.1rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1rem;
-            animation: pulse 2s infinite;
-        }
-        
-        .placeholder-text svg {
-            width: 80px;
-            height: 80px;
-            stroke: rgba(148, 163, 184, 0.6);
-            stroke-width: 1;
-            fill: none;
-        }
-
-        #canvas-wrap {
-            position: relative;
-            max-width: 100%;
-            max-height: 100%;
-            display: none;
-            align-items: center;
-            justify-content: center;
-        }
-
-        canvas {
-            border-radius: 12px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
-            max-width: 100%;
-            max-height: 75vh;
-            object-fit: contain;
-            border: 1px solid var(--border-color);
-        }
-
-        /* Loading Spinner */
-        .spinner {
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top: 3px solid #fff;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            display: none;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes pulse {
-            0% { opacity: 0.7; }
-            50% { opacity: 1; }
-            100% { opacity: 0.7; }
-        }
-
-        @media (max-width: 960px) {
-            .main-layout {
-                grid-template-columns: 1fr;
-            }
-            .preview-panel {
-                min-height: 400px;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
     <div class="header">
@@ -344,7 +20,6 @@
         <div class="panel controls-panel">
             <div class="upload-area" id="upload-area">
                 <input type="file" id="file-input" accept="image/*">
-                <!-- Upload Icon -->
                 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                     <polyline points="17 8 12 3 7 8"></polyline>
@@ -356,51 +31,39 @@
                 </div>
             </div>
 
-            <div style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.8rem; background: rgba(79, 70, 229, 0.03); padding: 1rem; border-radius: 12px; border: 1px solid rgba(79, 70, 229, 0.1);">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="rembg-toggle" checked style="width: 18px; height: 18px; cursor: pointer;">
-                    <label for="rembg-toggle" style="font-size: 0.95rem; color: var(--text-main); cursor: pointer; font-weight: 600;">
-                        배경 제거(rembg) 활성화
-                    </label>
-                </div>
+            <!-- Tab bar -->
+            <div class="tab-bar">
+                <button class="tab-btn active" data-tab="yolo">YOLO 감지</button>
+                <button class="tab-btn" data-tab="features">특징점 추출</button>
+            </div>
 
-                <div id="rembg-options" style="display: flex; flex-direction: column; gap: 0.6rem; padding-left: 1.6rem; border-left: 2px solid rgba(79, 70, 229, 0.1);">
-                    <div style="display: flex; flex-direction: column; gap: 4px;">
-                        <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">모델 선택 (Model)</label>
-                        <select id="rembg-model" style="padding: 0.4rem; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; background: white;">
-                            <option value="birefnet-general">birefnet-general (최고 품질/매우 무거움)</option>
-                            <option value="birefnet-general-lite" selected>birefnet-general-lite (품질/속도 균형)</option>
-                            <option value="isnet-general-use">isnet-general-use (무난함/추천)</option>
-                            <option value="u2net">u2net (기본)</option>
-                            <option value="silueta">silueta (매우 빠름)</option>
-                            <option value="u2net_cloth_seg">u2net_cloth_seg (의류)</option>
-                            <option value="birefnet-portrait">birefnet-portrait (인물 특화)</option>
-                        </select>
-                    </div>
-                    
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <input type="checkbox" id="rembg-alpha" style="width: 15px; height: 15px; cursor: pointer;">
-                        <label for="rembg-alpha" style="font-size: 0.85rem; color: var(--text-main); cursor: pointer;">
-                            Alpha Matting 적용 (정밀한 테두리)
-                        </label>
-                    </div>
+            <!-- Tab 1: YOLO Detection -->
+            <div class="tab-content active" id="tab-yolo">
+                <button class="analyze-btn" id="yolo-btn" onclick="analyzeYolo()">
+                    <span class="spinner" id="yolo-spinner"></span>
+                    <span id="yolo-btn-text">YOLO 감지 시작</span>
+                </button>
+                <div class="results-area" id="yolo-results">
+                    <div class="empty-state">이미지를 업로드하고 분석을 시작하세요</div>
                 </div>
             </div>
 
-            <button class="analyze-btn" id="analyze-btn" onclick="analyze()">
-                <span class="spinner" id="spinner"></span>
-                <span id="btn-text">이미지 분석 시작</span>
-            </button>
-
-            <div class="results-section">
-                <div class="results-header">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="16 18 22 12 16 6"></polyline>
-                        <polyline points="8 6 2 12 8 18"></polyline>
-                    </svg>
-                    분석 결과 (JSON Format)
+            <!-- Tab 2: Feature Extraction -->
+            <div class="tab-content" id="tab-features">
+                <div class="backbone-selector">
+                    <div class="section-label">백본 모델</div>
+                    <select class="backbone-select" id="backbone-select">
+                        <option value="" disabled selected>로딩 중...</option>
+                    </select>
+                    <div class="backbone-info" id="backbone-info"></div>
                 </div>
-                <pre id="json-output">// 결과 데이터가 여기에 표시됩니다...</pre>
+                <button class="analyze-btn" id="feat-btn" onclick="extractFeatures()">
+                    <span class="spinner" id="feat-spinner"></span>
+                    <span id="feat-btn-text">특징점 추출 시작</span>
+                </button>
+                <div class="results-area" id="feat-results">
+                    <div class="empty-state">백본을 선택하고 이미지를 업로드하세요</div>
+                </div>
             </div>
         </div>
 
@@ -421,18 +84,34 @@
     </div>
 
     <script>
+        // ── Constants ──
+        const CLASS_COLORS = {
+            'bag':        '#EF4444',
+            'sunglasses': '#F97316',
+            'food_drink': '#F59E0B',
+            'shoes':      '#10B981',
+            'clothing':   '#06B6D4',
+        };
+        const FALLBACK_COLORS = ['#3B82F6', '#6366F1', '#EC4899', '#8B5CF6', '#14B8A6'];
+
+        function getClassColor(className) {
+            return CLASS_COLORS[className] || FALLBACK_COLORS[0];
+        }
+
+        // ── DOM refs ──
         const fileInput = document.getElementById('file-input');
         const uploadArea = document.getElementById('upload-area');
         const fileNameDisplay = document.getElementById('file-name');
-        const analyzeBtn = document.getElementById('analyze-btn');
-        const btnText = document.getElementById('btn-text');
-        const spinner = document.getElementById('spinner');
         const placeholder = document.getElementById('placeholder');
         const canvasWrap = document.getElementById('canvas-wrap');
-        const jsonOutput = document.getElementById('json-output');
 
         let selectedFile = null;
+        let backboneList = [];
+        let lastYoloData = null;
+        let lastFeatData = null;
+        let lastFeatFeaturesBase64 = null;
 
+        // ── Upload handling ──
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('dragover');
@@ -448,16 +127,7 @@
                 handleFileSelect();
             }
         });
-
         fileInput.addEventListener('change', handleFileSelect);
-
-        const rembgToggle = document.getElementById('rembg-toggle');
-        const rembgOptions = document.getElementById('rembg-options');
-
-        rembgToggle.addEventListener('change', () => {
-            rembgOptions.style.opacity = rembgToggle.checked ? '1' : '0.4';
-            rembgOptions.style.pointerEvents = rembgToggle.checked ? 'auto' : 'none';
-        });
 
         function handleFileSelect() {
             if (fileInput.files.length > 0) {
@@ -466,102 +136,406 @@
             }
         }
 
-        async function analyze() {
+        // ── Tab switching ──
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+                // Re-render canvas for the active tab
+                if (btn.dataset.tab === 'yolo' && lastYoloData) {
+                    renderCanvasYolo();
+                } else if (btn.dataset.tab === 'features' && lastFeatData) {
+                    renderCanvasFeatures();
+                }
+            });
+        });
+
+        // ── Backbone loading ──
+        async function loadBackbones() {
+            const select = document.getElementById('backbone-select');
+            try {
+                const res = await fetch('/api');
+                if (!res.ok) throw new Error('API 응답 에러');
+                backboneList = await res.json();
+
+                select.innerHTML = '';
+                if (backboneList.length === 0) {
+                    select.innerHTML = '<option value="" disabled selected>등록된 백본 없음</option>';
+                    return;
+                }
+
+                const loadedCount = backboneList.filter(b => b.loaded).length;
+                if (loadedCount === 0) {
+                    select.innerHTML = '<option value="" disabled selected>로드된 백본 없음</option>';
+                    updateBackboneInfo(null);
+                    return;
+                }
+
+                backboneList.forEach(b => {
+                    const opt = document.createElement('option');
+                    opt.value = b.name;
+                    opt.textContent = b.displayName + (b.loaded ? '' : ' (미로드)');
+                    opt.disabled = !b.loaded;
+                    select.appendChild(opt);
+                });
+
+                // Select first loaded backbone
+                const firstLoaded = backboneList.find(b => b.loaded);
+                if (firstLoaded) {
+                    select.value = firstLoaded.name;
+                    updateBackboneInfo(firstLoaded);
+                }
+            } catch (e) {
+                select.innerHTML = '<option value="" disabled selected>백본 로드 실패</option>';
+                console.error(e);
+            }
+        }
+
+        document.getElementById('backbone-select').addEventListener('change', (e) => {
+            const b = backboneList.find(bb => bb.name === e.target.value);
+            updateBackboneInfo(b);
+        });
+
+        function updateBackboneInfo(backbone) {
+            const info = document.getElementById('backbone-info');
+            if (!backbone) {
+                info.innerHTML = '<span class="status-dot not-loaded"></span> 모델 파일이 로드되지 않았습니다';
+                return;
+            }
+            const dotClass = backbone.loaded ? 'loaded' : 'not-loaded';
+            const status = backbone.loaded ? '로드됨' : '미로드';
+            info.innerHTML = `<span class="status-dot ${dotClass}"></span> ${status} &middot; 입력 크기: ${backbone.inputSize[0]} x ${backbone.inputSize[1]}`;
+        }
+
+        // ── Ensure file selected ──
+        function ensureFile() {
             if (!selectedFile) {
                 if (fileInput.files.length > 0) {
                     selectedFile = fileInput.files[0];
                 } else {
                     alert('먼저 이미지를 선택해주세요.');
-                    return;
+                    return false;
                 }
             }
+            return true;
+        }
+
+        // ══════════════════════════════════════════
+        // Tab 1: YOLO Detection
+        // ══════════════════════════════════════════
+
+        async function analyzeYolo() {
+            if (!ensureFile()) return;
+
+            const btn = document.getElementById('yolo-btn');
+            const btnText = document.getElementById('yolo-btn-text');
+            const spinner = document.getElementById('yolo-spinner');
 
             btnText.textContent = '분석 진행 중...';
             spinner.style.display = 'block';
-            analyzeBtn.disabled = true;
+            btn.disabled = true;
 
             try {
-                const useRembg = document.getElementById('rembg-toggle').checked;
-                const model = document.getElementById('rembg-model').value;
-                const alpha = document.getElementById('rembg-alpha').checked;
-                
                 const form = new FormData();
                 form.append('file', selectedFile);
-
-                const queryParams = new URLSearchParams({
-                    use_rembg: useRembg,
-                    model: model,
-                    alpha_matting: alpha
-                });
-
-                const res = await fetch(`/visualize/?${queryParams.toString()}`, { method: 'POST', body: form });
+                const res = await fetch('/visualize/', { method: 'POST', body: form });
                 if (!res.ok) throw new Error('API 응답 에러');
-                const data = await res.json();
-
-                jsonOutput.textContent = JSON.stringify(data, null, 2);
-
-                const img = new Image();
-                img.onload = () => {
-                    placeholder.style.display = 'none';
-                    canvasWrap.style.display = 'flex';
-                    drawBoxes(img, data.detections);
-                };
-                
-                if (data.rembgImage) {
-                    img.src = `data:image/png;base64,${data.rembgImage}`;
-                } else {
-                    img.src = URL.createObjectURL(selectedFile);
-                }
+                lastYoloData = await res.json();
+                renderDetectionStats(lastYoloData.detections);
+                renderCanvasYolo();
             } catch (error) {
-                alert('분석에 실패했습니다. 서버를 확인해주세요.');
+                document.getElementById('yolo-results').innerHTML =
+                    `<div class="stat-card" style="color:#ef4444">분석 실패: ${error.message}</div>`;
                 console.error(error);
-                jsonOutput.textContent = `// 오류 발생:\n${error.message}`;
             } finally {
-                btnText.textContent = '이미지 분석 시작';
+                btnText.textContent = 'YOLO 감지 시작';
                 spinner.style.display = 'none';
-                analyzeBtn.disabled = false;
+                btn.disabled = false;
             }
         }
 
-        function drawBoxes(img, detections) {
+        function renderCanvasYolo() {
+            if (!lastYoloData || !selectedFile) return;
+            const img = new Image();
+            img.onload = () => {
+                placeholder.style.display = 'none';
+                canvasWrap.style.display = 'flex';
+                drawBoxes(img, lastYoloData.detections);
+            };
+            img.src = URL.createObjectURL(selectedFile);
+        }
+
+        function renderDetectionStats(detections) {
+            const container = document.getElementById('yolo-results');
+
+            if (!detections || detections.length === 0) {
+                container.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-summary">
+                            <div>
+                                <div class="stat-big-number">0</div>
+                                <div class="stat-big-label">감지된 객체</div>
+                            </div>
+                        </div>
+                        <div style="color:var(--text-muted); font-size:0.85rem;">감지된 객체가 없습니다.</div>
+                    </div>
+                    ${jsonDetailsHtml(detections)}`;
+                return;
+            }
+
+            // Compute stats
+            const byClass = {};
+            detections.forEach(d => {
+                if (!byClass[d.class]) byClass[d.class] = { count: 0, confs: [] };
+                byClass[d.class].count++;
+                byClass[d.class].confs.push(d.confidence);
+            });
+            Object.values(byClass).forEach(c => {
+                c.min = Math.min(...c.confs);
+                c.max = Math.max(...c.confs);
+                c.avg = c.confs.reduce((a, b) => a + b, 0) / c.confs.length;
+            });
+            const maxCount = Math.max(...Object.values(byClass).map(c => c.count));
+
+            // Badges HTML
+            const badgesHtml = Object.entries(byClass).map(([cls, data]) => {
+                const color = getClassColor(cls);
+                return `<span class="class-badge" style="background:${color}">${cls} <span class="badge-count">${data.count}</span></span>`;
+            }).join('');
+
+            // Confidence table HTML
+            const tableRows = Object.entries(byClass).map(([cls, data]) => {
+                const color = getClassColor(cls);
+                return `<tr>
+                    <td><span class="class-dot" style="background:${color}"></span>${cls}</td>
+                    <td style="text-align:center">${data.count}</td>
+                    <td style="font-variant-numeric:tabular-nums">${data.min.toFixed(3)}</td>
+                    <td style="font-variant-numeric:tabular-nums">${data.max.toFixed(3)}</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:6px">
+                            <span style="font-variant-numeric:tabular-nums;font-weight:600;min-width:38px">${data.avg.toFixed(3)}</span>
+                            <div class="conf-bar-wrap"><div class="conf-bar" style="width:${data.avg * 100}%;background:${color}"></div></div>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            // Distribution bars HTML
+            const distHtml = Object.entries(byClass).map(([cls, data]) => {
+                const color = getClassColor(cls);
+                const pct = (data.count / detections.length * 100);
+                return `<div class="dist-row">
+                    <span class="dist-label">${cls}</span>
+                    <div class="dist-bar-wrap">
+                        <div class="dist-bar" style="width:${(data.count / maxCount * 100)}%;background:${color}">${data.count}</div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            container.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-summary">
+                        <div>
+                            <div class="stat-big-number">${detections.length}</div>
+                            <div class="stat-big-label">감지된 객체</div>
+                        </div>
+                        <div class="class-badges">${badgesHtml}</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="section-label">클래스별 Confidence</div>
+                    <table class="conf-table">
+                        <tr><th>클래스</th><th style="text-align:center">수량</th><th>Min</th><th>Max</th><th>Avg</th></tr>
+                        ${tableRows}
+                    </table>
+                </div>
+
+                <div class="stat-card">
+                    <div class="section-label">클래스 분포</div>
+                    ${distHtml}
+                </div>
+
+                ${jsonDetailsHtml(detections)}`;
+        }
+
+        function jsonDetailsHtml(data) {
+            return `<details class="json-details">
+                <summary>원본 JSON 응답</summary>
+                <pre class="json-output">${JSON.stringify({detections: data}, null, 2)}</pre>
+            </details>`;
+        }
+
+        // ══════════════════════════════════════════
+        // Tab 2: Feature Extraction
+        // ══════════════════════════════════════════
+
+        async function extractFeatures() {
+            if (!ensureFile()) return;
+            const backboneName = document.getElementById('backbone-select').value;
+            if (!backboneName) {
+                alert('백본 모델을 선택해주세요.');
+                return;
+            }
+
+            const btn = document.getElementById('feat-btn');
+            const btnText = document.getElementById('feat-btn-text');
+            const spinner = document.getElementById('feat-spinner');
+
+            btnText.textContent = '추출 진행 중...';
+            spinner.style.display = 'block';
+            btn.disabled = true;
+
+            try {
+                const form = new FormData();
+                form.append('file', selectedFile);
+                const res = await fetch(`/api/${backboneName}/process-image/`, { method: 'POST', body: form });
+                if (!res.ok) throw new Error('API 응답 에러');
+                lastFeatData = await res.json();
+                lastFeatFeaturesBase64 = lastFeatData.featuresBase64;
+                renderFeatureResults(lastFeatData, backboneName);
+                renderCanvasFeatures();
+            } catch (error) {
+                document.getElementById('feat-results').innerHTML =
+                    `<div class="stat-card" style="color:#ef4444">추출 실패: ${error.message}</div>`;
+                console.error(error);
+            } finally {
+                btnText.textContent = '특징점 추출 시작';
+                spinner.style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+
+        function renderCanvasFeatures() {
+            if (!lastFeatData || !selectedFile) return;
+            const img = new Image();
+            img.onload = () => {
+                placeholder.style.display = 'none';
+                canvasWrap.style.display = 'flex';
+                drawBoxes(img, lastFeatData.detections, lastFeatData.coordinate);
+            };
+            img.src = URL.createObjectURL(selectedFile);
+        }
+
+        function renderFeatureResults(data, backboneName) {
+            const container = document.getElementById('feat-results');
+            const backbone = backboneList.find(b => b.name === backboneName);
+            const displayName = backbone ? backbone.displayName : backboneName;
+
+            // Detection info
+            let detInfoHtml;
+            if (data.detectedClass) {
+                const color = getClassColor(data.detectedClass);
+                detInfoHtml = `
+                    <div class="detection-info">
+                        <span class="det-class-badge" style="background:${color}">${data.detectedClass}</span>
+                        <div class="det-confidence">
+                            <span class="value">${(data.confidence * 100).toFixed(1)}%</span>
+                            <div class="conf-bar-wrap" style="width:80px">
+                                <div class="conf-bar" style="width:${data.confidence * 100}%;background:${color}"></div>
+                            </div>
+                        </div>
+                        <span class="det-coords">[${data.coordinate.join(', ')}]</span>
+                    </div>`;
+            } else {
+                detInfoHtml = `<div class="det-warning">YOLO 감지 실패 - 원본 이미지로 추출됨</div>`;
+            }
+
+            // Channel chips
+            let channels = [];
+            try { channels = JSON.parse(data.order); } catch (e) {}
+            const chipsHtml = channels.map((ch, i) =>
+                `<span class="chip ${i < 5 ? 'highlight' : 'muted'}">${ch}</span>`
+            ).join('');
+
+            // Features info
+            const b64Len = data.featuresBase64.length;
+            const rawBytes = Math.ceil(b64Len * 3 / 4);
+
+            container.innerHTML = `
+                <div class="stat-card">
+                    <div class="section-label">YOLO 감지 (${displayName})</div>
+                    ${detInfoHtml}
+                </div>
+
+                <div class="stat-card">
+                    <div class="section-label">상위 ${channels.length} 채널 인덱스 (GAP 기준)</div>
+                    <div class="channel-chips">${chipsHtml}</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="section-label">특징점 데이터</div>
+                    <div class="info-row">
+                        <span class="label">Base64 길이</span>
+                        <span class="value">${b64Len.toLocaleString()} chars</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">원본 크기</span>
+                        <span class="value">${rawBytes.toLocaleString()} bytes</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">featuresBase64</span>
+                        <button class="copy-btn" onclick="copyFeatures(this)">복사</button>
+                    </div>
+                </div>
+
+                <details class="json-details">
+                    <summary>원본 JSON 응답</summary>
+                    <pre class="json-output">${JSON.stringify(data, null, 2)}</pre>
+                </details>`;
+        }
+
+        function copyFeatures(btn) {
+            if (!lastFeatFeaturesBase64) return;
+            navigator.clipboard.writeText(lastFeatFeaturesBase64).then(() => {
+                btn.textContent = '복사됨';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = '복사';
+                    btn.classList.remove('copied');
+                }, 1500);
+            });
+        }
+
+        // ══════════════════════════════════════════
+        // Canvas Drawing
+        // ══════════════════════════════════════════
+
+        function drawBoxes(img, detections, highlightCoord) {
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = img.width;
             canvas.height = img.height;
             ctx.drawImage(img, 0, 0);
 
-            const colors = [
-                '#EF4444', '#F97316', '#F59E0B', '#10B981', 
-                '#06B6D4', '#3B82F6', '#6366F1', '#EC4899',
-                '#8B5CF6', '#14B8A6'
-            ];
-
             if (!detections || detections.length === 0) return;
 
-            detections.forEach((d, i) => {
-                const color = colors[i % colors.length];
+            const lineWidth = Math.max(3, img.width / 400);
+            const fontSize = Math.max(16, img.width / 60);
+
+            detections.forEach((d) => {
+                const color = getClassColor(d.class);
                 const [x1, y1, x2, y2] = d.coordinate;
                 const width = x2 - x1;
                 const height = y2 - y1;
 
-                const lineWidth = Math.max(3, img.width / 400);
-                
                 ctx.strokeStyle = color;
                 ctx.lineWidth = lineWidth;
-                
+
                 ctx.shadowColor = color;
                 ctx.shadowBlur = 12;
                 ctx.strokeRect(x1, y1, width, height);
-                ctx.shadowBlur = 0; 
-
+                ctx.shadowBlur = 0;
                 ctx.strokeRect(x1, y1, width, height);
 
-                const confidence = d.confidence ? (d.confidence).toFixed(2) : '';
+                const confidence = d.confidence ? d.confidence.toFixed(2) : '';
                 const text = `${d.class} ${confidence}`;
-                const fontSize = Math.max(16, img.width / 60);
-                
+
                 ctx.font = `bold ${fontSize}px 'Inter', sans-serif`;
-                
+
                 const padding = fontSize * 0.4;
                 const textMetrics = ctx.measureText(text);
                 const textWidth = textMetrics.width;
@@ -569,9 +543,9 @@
 
                 ctx.fillStyle = color;
                 ctx.fillRect(
-                    x1 - lineWidth/2, 
-                    y1 - textHeight - (padding * 2), 
-                    textWidth + (padding * 2), 
+                    x1 - lineWidth / 2,
+                    y1 - textHeight - (padding * 2),
+                    textWidth + (padding * 2),
                     textHeight + (padding * 2)
                 );
 
@@ -579,7 +553,50 @@
                 ctx.textBaseline = 'top';
                 ctx.fillText(text, x1 + padding, y1 - textHeight - padding);
             });
+
+            // Highlight the crop region (feature extraction tab)
+            if (highlightCoord) {
+                const [hx1, hy1, hx2, hy2] = highlightCoord;
+                const hw = hx2 - hx1;
+                const hh = hy2 - hy1;
+
+                // Dim everything outside the crop
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+                // Top
+                ctx.fillRect(0, 0, img.width, hy1);
+                // Bottom
+                ctx.fillRect(0, hy2, img.width, img.height - hy2);
+                // Left
+                ctx.fillRect(0, hy1, hx1, hh);
+                // Right
+                ctx.fillRect(hx2, hy1, img.width - hx2, hh);
+
+                // Dashed border around crop
+                ctx.setLineDash([8, 6]);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = Math.max(2, img.width / 300);
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 6;
+                ctx.strokeRect(hx1, hy1, hw, hh);
+                ctx.shadowBlur = 0;
+                ctx.setLineDash([]);
+
+                // "CROP" label
+                const cropFontSize = Math.max(12, img.width / 80);
+                ctx.font = `bold ${cropFontSize}px 'Inter', sans-serif`;
+                const cropText = 'CROP';
+                const cropMetrics = ctx.measureText(cropText);
+                const cropPad = cropFontSize * 0.3;
+                ctx.fillStyle = 'rgba(79, 70, 229, 0.85)';
+                ctx.fillRect(hx1, hy2 + 2, cropMetrics.width + cropPad * 2, cropFontSize + cropPad * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.textBaseline = 'top';
+                ctx.fillText(cropText, hx1 + cropPad, hy2 + 2 + cropPad);
+            }
         }
+
+        // ── Init ──
+        loadBackbones();
     </script>
 </body>
 </html>

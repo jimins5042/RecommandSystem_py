@@ -44,9 +44,6 @@ async def _run_backbone_timed(backbone: Backbone, image: Image.Image) -> dict:
 async def compare_process_image(
     file: UploadFile = File(...),
     backbones: list[str] | None = Query(None, description="비교할 백본 이름 목록. 생략 시 로드된 모든 백본."),
-    use_rembg: bool = False,
-    rembg_model: str = "u2net",
-    alpha_matting: bool = False,
 ):
     """동일 이미지에 대해 지정된 백본들을 모두 실행하고 결과 + latency 반환."""
     # 타겟 결정
@@ -65,10 +62,8 @@ async def compare_process_image(
 
     image = Image.open(BytesIO(await file.read())).convert("RGB")
 
-    # YOLO crop + rembg 는 한 번만 수행 (공유)
-    cropped, det_class, conf, coord, all_dets = detect_and_crop(
-        image, use_rembg=use_rembg, rembg_model=rembg_model, alpha_matting=alpha_matting,
-    )
+    # YOLO crop 은 한 번만 수행 (공유)
+    cropped, det_class, conf, coord, all_dets = detect_and_crop(image)
 
     # 백본들을 병렬 실행
     tasks = [_run_backbone_timed(REGISTRY[n], cropped) for n in targets]

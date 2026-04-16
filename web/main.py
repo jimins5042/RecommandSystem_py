@@ -11,7 +11,7 @@ FastAPI 앱 엔트리포인트.
   POST /api/{name}/process-image/          # {name} = vgg16 | efficientnet-b0
   POST /api/{name}/process-image/crop/                                        
   POST /compare/process-image/                   # ★ 병렬 실행 + latencyMs
-  POST /visualize/                               # YOLO + rembg (백본 독립)
+  POST /visualize/                               # YOLO (백본 독립)
 """
 import logging
 import sys
@@ -24,7 +24,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from config import STATIC_DIR
-from web.routes import compare, features, visualize
+from web.routes import compare, features, ground_truth, visualize
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,6 +40,7 @@ app = FastAPI(
 app.include_router(visualize.router)
 app.include_router(features.router, prefix="/api")
 app.include_router(compare.router)
+app.include_router(ground_truth.router, prefix="/gt")
 
 # 정적 파일은 마지막에 마운트 (API 라우트가 가려지지 않도록)
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

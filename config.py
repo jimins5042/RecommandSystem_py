@@ -32,6 +32,9 @@ KOREAN_TO_EN = {
     "의류":   "clothing",
 }
 
+# ── Ground Truth ──
+GT_DATA_DIR = os.getenv("GT_DATA_DIR", str(PROJECT_ROOT / "ground_truth_data"))
+
 # ── 배치 추출 ──
 CLASSIFY_DIR = os.getenv("CLASSIFY_DIR", str(PROJECT_ROOT / "classify"))
 IMG_DIR      = os.getenv("IMG_DIR",      str(PROJECT_ROOT / "upload"))

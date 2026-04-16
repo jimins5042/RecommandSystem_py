@@ -5,5 +5,5 @@ numpy
 pillow
 python-multipart
 ultralytics
-rembg
 python-dotenv
+faiss-cpu

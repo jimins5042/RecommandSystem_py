@@ -49,17 +49,12 @@ async def list_backbones():
 async def process_image(
     name: str,
     file: UploadFile = File(...),
-    use_rembg: bool = False,
-    rembg_model: str = "u2net",
-    alpha_matting: bool = False,
 ):
     backbone = _get_backbone_or_404(name)
     logger.info(f"[{name}/process-image] 요청 수신: {file.filename}")
 
     image = Image.open(BytesIO(await file.read())).convert("RGB")
-    cropped, det_class, conf, coord, all_dets = detect_and_crop(
-        image, use_rembg=use_rembg, rembg_model=rembg_model, alpha_matting=alpha_matting,
-    )
+    cropped, det_class, conf, coord, all_dets = detect_and_crop(image)
 
     output = backbone.extract(cropped)
 

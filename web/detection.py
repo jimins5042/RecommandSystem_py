@@ -1,5 +1,5 @@
 """
-YOLO 상품 감지 + rembg 배경 제거 (서빙 전용).
+YOLO 상품 감지 (서빙 전용).
 
 상위 라우터들이 공통으로 사용. 백본에 독립적.
 """
@@ -10,7 +10,6 @@ import os
 
 import numpy as np
 from PIL import Image
-from rembg import new_session, remove
 from ultralytics import YOLO
 
 from config import CLASS_NAMES, MODEL_DIR, YOLO_CONF_THRESHOLD
@@ -25,29 +24,6 @@ if os.path.exists(YOLO_MODEL_PATH):
 else:
     yolo_model = None
     logger.warning(f"YOLO model not found at {YOLO_MODEL_PATH}. Running without object detection.")
-
-# ── rembg 세션 캐시 (모델명 → 세션) ──
-_rembg_sessions: dict[str, object] = {}
-
-
-def get_rembg_session(model_name: str):
-    if model_name not in _rembg_sessions:
-        logger.info(f"rembg 새로운 세션 생성: {model_name}")
-        _rembg_sessions[model_name] = new_session(model_name)
-    return _rembg_sessions[model_name]
-
-
-def apply_rembg(image: Image.Image, model: str = "u2net", alpha_matting: bool = False) -> tuple[Image.Image, Image.Image]:
-    """
-    rembg 적용. 반환: (RGBA 원본, 흰 배경 합성된 RGB).
-    - RGBA: 미리보기/debug 용
-    - RGB: 이후 YOLO/백본 입력으로 사용
-    """
-    session = get_rembg_session(model)
-    image_rgba = remove(image, session=session, alpha_matting=alpha_matting)
-    rgb = Image.new("RGB", image_rgba.size, (255, 255, 255))
-    rgb.paste(image_rgba, mask=image_rgba.split()[3])
-    return image_rgba, rgb
 
 
 def detect_objects(image: Image.Image) -> list[dict]:
@@ -74,13 +50,7 @@ def detect_objects(image: Image.Image) -> list[dict]:
     return detections
 
 
-def detect_and_crop(
-    image: Image.Image,
-    *,
-    use_rembg: bool = False,
-    rembg_model: str = "u2net",
-    alpha_matting: bool = False,
-):
+def detect_and_crop(image: Image.Image):
     """
     YOLO 로 상품 감지 후 confidence 최고 박스만 crop.
     반환: (cropped_image, detected_class, confidence, coordinate, all_detections)
@@ -90,8 +60,7 @@ def detect_and_crop(
     if yolo_model is None:
         return image, None, None, None, []
 
-    processed = apply_rembg(image, rembg_model, alpha_matting)[1] if use_rembg else image
-    results = yolo_model.predict(np.array(processed), conf=YOLO_CONF_THRESHOLD, verbose=False)
+    results = yolo_model.predict(np.array(image), conf=YOLO_CONF_THRESHOLD, verbose=False)
     boxes = results[0].boxes
     if boxes is None or len(boxes) == 0:
         return image, None, None, None, []
