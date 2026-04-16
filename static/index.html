@@ -35,6 +35,7 @@
             <div class="tab-bar">
                 <button class="tab-btn active" data-tab="yolo">YOLO 감지</button>
                 <button class="tab-btn" data-tab="features">특징점 추출</button>
+                <button class="tab-btn" data-tab="compare">백본 비교</button>
             </div>
 
             <!-- Tab 1: YOLO Detection -->
@@ -63,6 +64,16 @@
                 </button>
                 <div class="results-area" id="feat-results">
                     <div class="empty-state">백본을 선택하고 이미지를 업로드하세요</div>
+                </div>
+            </div>
+            <!-- Tab 3: Backbone Compare -->
+            <div class="tab-content" id="tab-compare">
+                <button class="analyze-btn" id="cmp-btn" onclick="compareBackbones()">
+                    <span class="spinner" id="cmp-spinner"></span>
+                    <span id="cmp-btn-text">전체 백본 비교 시작</span>
+                </button>
+                <div class="results-area" id="cmp-results">
+                    <div class="empty-state">이미지를 업로드하고 비교를 시작하세요</div>
                 </div>
             </div>
         </div>
@@ -110,6 +121,7 @@
         let lastYoloData = null;
         let lastFeatData = null;
         let lastFeatFeaturesBase64 = null;
+        let lastCmpData = null;
 
         // ── Upload handling ──
         uploadArea.addEventListener('dragover', (e) => {
@@ -149,6 +161,8 @@
                     renderCanvasYolo();
                 } else if (btn.dataset.tab === 'features' && lastFeatData) {
                     renderCanvasFeatures();
+                } else if (btn.dataset.tab === 'compare' && lastCmpData) {
+                    renderCanvasCompare();
                 }
             });
         });
@@ -498,6 +512,149 @@
                     btn.classList.remove('copied');
                 }, 1500);
             });
+        }
+
+        // ══════════════════════════════════════════
+        // Tab 3: Backbone Compare
+        // ══════════════════════════════════════════
+
+        const BACKBONE_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+        async function compareBackbones() {
+            if (!ensureFile()) return;
+
+            const btn = document.getElementById('cmp-btn');
+            const btnText = document.getElementById('cmp-btn-text');
+            const spinner = document.getElementById('cmp-spinner');
+
+            btnText.textContent = '비교 진행 중...';
+            spinner.style.display = 'block';
+            btn.disabled = true;
+
+            try {
+                const form = new FormData();
+                form.append('file', selectedFile);
+                const res = await fetch('/compare/process-image/', { method: 'POST', body: form });
+                if (!res.ok) throw new Error('API 응답 에러');
+                lastCmpData = await res.json();
+                renderCompareResults(lastCmpData);
+                renderCanvasCompare();
+            } catch (error) {
+                document.getElementById('cmp-results').innerHTML =
+                    `<div class="stat-card" style="color:#ef4444">비교 실패: ${error.message}</div>`;
+                console.error(error);
+            } finally {
+                btnText.textContent = '전체 백본 비교 시작';
+                spinner.style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+
+        function renderCanvasCompare() {
+            if (!lastCmpData || !selectedFile) return;
+            const img = new Image();
+            img.onload = () => {
+                placeholder.style.display = 'none';
+                canvasWrap.style.display = 'flex';
+                drawBoxes(img, lastCmpData.shared.detections, lastCmpData.shared.coordinate);
+            };
+            img.src = URL.createObjectURL(selectedFile);
+        }
+
+        function renderCompareResults(data) {
+            const container = document.getElementById('cmp-results');
+            const shared = data.shared;
+            const results = data.results;
+            const names = Object.keys(results);
+
+            // Shared detection info
+            let sharedHtml;
+            if (shared.detectedClass) {
+                const color = getClassColor(shared.detectedClass);
+                sharedHtml = `<div class="detection-info">
+                    <span class="det-class-badge" style="background:${color}">${shared.detectedClass}</span>
+                    <div class="det-confidence">
+                        <span class="value">${(shared.confidence * 100).toFixed(1)}%</span>
+                        <div class="conf-bar-wrap" style="width:80px">
+                            <div class="conf-bar" style="width:${shared.confidence * 100}%;background:${color}"></div>
+                        </div>
+                    </div>
+                </div>`;
+            } else {
+                sharedHtml = `<div class="det-warning">YOLO 감지 실패 - 원본 이미지로 추출됨</div>`;
+            }
+
+            // Latency comparison
+            const latencies = names.map(n => ({ name: n, ms: results[n].latencyMs, error: results[n].error }));
+            const maxLatency = Math.max(...latencies.filter(l => !l.error).map(l => l.ms), 1);
+            const fastest = latencies.filter(l => !l.error).reduce((a, b) => a.ms < b.ms ? a : b, { ms: Infinity });
+
+            const latencyBars = latencies.map((l, i) => {
+                const bColor = BACKBONE_COLORS[i % BACKBONE_COLORS.length];
+                const displayName = backboneList.find(b => b.name === l.name)?.displayName || l.name;
+                if (l.error) {
+                    return `<div class="dist-row">
+                        <span class="dist-label">${displayName}</span>
+                        <div class="dist-bar-wrap"><div class="dist-bar" style="width:100%;background:#ef4444">오류</div></div>
+                    </div>`;
+                }
+                const isFastest = l.name === fastest.name;
+                return `<div class="dist-row">
+                    <span class="dist-label">${displayName}</span>
+                    <div class="dist-bar-wrap">
+                        <div class="dist-bar" style="width:${(l.ms / maxLatency * 100)}%;background:${bColor}">
+                            ${l.ms.toFixed(1)}ms
+                        </div>
+                    </div>
+                    ${isFastest && names.length > 1 ? '<span style="font-size:0.7rem;font-weight:700;color:#10b981">FAST</span>' : ''}
+                </div>`;
+            }).join('');
+
+            // Per-backbone results
+            const backboneCards = names.map((name, i) => {
+                const r = results[name];
+                const displayName = backboneList.find(b => b.name === name)?.displayName || name;
+                const bColor = BACKBONE_COLORS[i % BACKBONE_COLORS.length];
+
+                if (r.error) {
+                    return `<div class="stat-card">
+                        <div class="section-label" style="color:${bColor}">${displayName}</div>
+                        <div class="det-warning">${r.error}</div>
+                    </div>`;
+                }
+
+                let channels = [];
+                try { channels = JSON.parse(r.order); } catch (e) {}
+                const chipsHtml = channels.slice(0, 10).map((ch, ci) =>
+                    `<span class="chip ${ci < 3 ? 'highlight' : 'muted'}">${ch}</span>`
+                ).join('') + (channels.length > 10 ? `<span class="chip muted">+${channels.length - 10}</span>` : '');
+
+                return `<div class="stat-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem">
+                        <div class="section-label" style="margin-bottom:0;color:${bColor}">${displayName}</div>
+                        <span style="font-size:0.75rem;font-weight:700;font-variant-numeric:tabular-nums;color:${bColor}">${r.latencyMs.toFixed(1)}ms</span>
+                    </div>
+                    <div class="channel-chips">${chipsHtml}</div>
+                </div>`;
+            }).join('');
+
+            container.innerHTML = `
+                <div class="stat-card">
+                    <div class="section-label">YOLO 감지 (공유)</div>
+                    ${sharedHtml}
+                </div>
+
+                <div class="stat-card">
+                    <div class="section-label">추론 시간 비교</div>
+                    ${latencyBars}
+                </div>
+
+                ${backboneCards}
+
+                <details class="json-details">
+                    <summary>원본 JSON 응답</summary>
+                    <pre class="json-output">${JSON.stringify(data, null, 2)}</pre>
+                </details>`;
         }
 
         // ══════════════════════════════════════════

@@ -157,10 +157,10 @@ body {
 
 .tab-btn {
     flex: 1;
-    padding: 0.6rem;
+    padding: 0.6rem 0.4rem;
     border: none;
     border-radius: 8px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 600;
     font-family: 'Inter', sans-serif;
     cursor: pointer;
