@@ -36,7 +36,7 @@ logger.info(f"VGG16 ONNX models loaded from {MODEL_DIR}")
 # 2. YOLO 모델 (상품 객체 인식)
 YOLO_MODEL_PATH = os.path.join(MODEL_DIR, "best.pt")
 YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.5"))
-CLASS_NAMES = ["bag", "sunglasses", "food_drink", "shoes", "clothing"]
+CLASS_NAMES = ["bag", "sunglass", "food", "shoes", "clothes"]
 
 if os.path.exists(YOLO_MODEL_PATH):
     yolo_model = YOLO(YOLO_MODEL_PATH)

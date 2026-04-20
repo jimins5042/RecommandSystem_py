@@ -36,10 +36,10 @@ SEED = 42
 # 파일명 접두사 [한글 카테고리] → class_id (CLASS_NAMES 순서와 매칭)
 CLASS_MAP = {
     "가방":   CLASS_NAMES.index("bag"),
-    "선글라스": CLASS_NAMES.index("sunglasses"),
-    "식음료":  CLASS_NAMES.index("food_drink"),
+    "선글라스": CLASS_NAMES.index("sunglass"),
+    "식음료":  CLASS_NAMES.index("food"),
     "신발":   CLASS_NAMES.index("shoes"),
-    "의류":   CLASS_NAMES.index("clothing"),
+    "의류":   CLASS_NAMES.index("clothes"),
 }
 
 

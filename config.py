@@ -21,15 +21,15 @@ STATIC_DIR = os.getenv("STATIC_DIR", str(PROJECT_ROOT / "static"))
 YOLO_CONF_THRESHOLD = float(os.getenv("YOLO_CONF_THRESHOLD", "0.5"))
 
 # ── 도메인 상수 ──
-CLASS_NAMES = ["bag", "sunglasses", "food_drink", "shoes", "clothing"]
+CLASS_NAMES = ["bag", "sunglass", "food", "shoes", "clothes"]
 
 # 한글 카테고리 → 영문 폴더명 매핑 (CLASS_NAMES 와 일치)
 KOREAN_TO_EN = {
     "가방":   "bag",
-    "선글라스": "sunglasses",
-    "식음료":  "food_drink",
+    "선글라스": "sunglass",
+    "식음료":  "food",
     "신발":   "shoes",
-    "의류":   "clothing",
+    "의류":   "clothes",
 }
 
 # ── Ground Truth ──

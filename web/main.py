@@ -23,7 +23,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from config import STATIC_DIR
+from config import IMG_DIR, STATIC_DIR
 from web.routes import compare, features, ground_truth, visualize
 
 logging.basicConfig(
@@ -43,6 +43,7 @@ app.include_router(compare.router)
 app.include_router(ground_truth.router, prefix="/gt")
 
 # 정적 파일은 마지막에 마운트 (API 라우트가 가려지지 않도록)
+app.mount("/upload", StaticFiles(directory=IMG_DIR), name="upload")
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
 

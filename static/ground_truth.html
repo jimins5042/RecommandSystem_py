@@ -453,7 +453,7 @@
                             ${queries.map(q => `
                                 <div class="query-item" data-id="${q.query_id}" onclick="loadQuery('${q.query_id}')">
                                     <span class="check ${q.completed ? 'done' : ''}">${q.completed ? '&#10003;' : ''}</span>
-                                    <span>${q.query_id}</span>
+                                    <span>${q.query_id} <small style="color:#94a3b8">${q.image_uuid}</small></span>
                                 </div>
                             `).join('')}
                         </div>
@@ -508,7 +508,7 @@
             view.style.display = 'block';
 
             const selectCount = selectedIds.size;
-            const countClass = selectCount === 10 ? 'complete' : 'incomplete';
+            const countClass = selectCount > 0 ? 'complete' : 'incomplete';
 
             let html = `
                 <div class="query-header">
@@ -518,24 +518,24 @@
                     <div class="query-info">
                         <h2>${data.query_id}</h2>
                         <p>카테고리: <strong>${data.category}</strong></p>
-                        <p>이미지 ID: ${data.image_id}</p>
+                        <p>이미지 ID: ${data.image_uuid}</p>
                     </div>
                 </div>
 
                 <div class="candidates-title">
-                    후보 ${data.candidates.length}건 중 10개 선택
-                    <span class="select-count ${countClass}" id="select-count">${selectCount} / 10</span>
+                    후보 ${data.candidates.length}건 중 최대 20개 선택
+                    <span class="select-count ${countClass}" id="select-count">${selectCount} / 20</span>
                 </div>
 
                 <div class="candidates-grid">
                     ${data.candidates.map((c, i) => `
-                        <div class="candidate-card ${selectedIds.has(c.image_id) ? 'selected' : ''}"
-                             data-image-id="${c.image_id}" onclick="toggleCandidate('${c.image_id}')">
-                            <img src="${c.image_url}" alt="${c.image_id}" loading="lazy"
+                        <div class="candidate-card ${selectedIds.has(c.image_uuid) ? 'selected' : ''}"
+                             data-image-id="${c.image_uuid}" onclick="toggleCandidate('${c.image_uuid}')">
+                            <img src="${c.image_url}" alt="${c.image_uuid}" loading="lazy"
                                  onerror="this.outerHTML='<div class=\\'img-error\\'>이미지 로드 실패</div>'">
                             <div class="card-footer">
                                 <span class="sim-score">${(c.similarity * 100).toFixed(1)}%</span>
-                                <span class="card-check">${selectedIds.has(c.image_id) ? '&#10003;' : ''}</span>
+                                <span class="card-check">${selectedIds.has(c.image_uuid) ? '&#10003;' : ''}</span>
                             </div>
                         </div>
                     `).join('')}
@@ -547,7 +547,7 @@
                         <button class="btn btn-outline" onclick="navigateQuery(1)">다음 &gt;</button>
                     </div>
                     <button class="btn btn-primary" id="save-btn" onclick="saveSelection()"
-                            ${selectCount !== 10 ? 'disabled' : ''}>
+                            ${selectCount === 0 ? 'disabled' : ''}>
                         저장
                     </button>
                 </div>
@@ -560,8 +560,8 @@
             if (selectedIds.has(imageId)) {
                 selectedIds.delete(imageId);
             } else {
-                if (selectedIds.size >= 10) {
-                    showToast('최대 10개까지 선택 가능합니다', 'error');
+                if (selectedIds.size >= 20) {
+                    showToast('최대 20개까지 선택 가능합니다', 'error');
                     return;
                 }
                 selectedIds.add(imageId);
@@ -577,14 +577,14 @@
 
             const count = selectedIds.size;
             const countEl = document.getElementById('select-count');
-            countEl.textContent = `${count} / 10`;
-            countEl.className = 'select-count ' + (count === 10 ? 'complete' : 'incomplete');
+            countEl.textContent = `${count} / 20`;
+            countEl.className = 'select-count ' + (count > 0 ? 'complete' : 'incomplete');
 
-            document.getElementById('save-btn').disabled = count !== 10;
+            document.getElementById('save-btn').disabled = count === 0;
         }
 
         async function saveSelection() {
-            if (selectedIds.size !== 10 || !currentQueryId) return;
+            if (selectedIds.size === 0 || !currentQueryId) return;
 
             const btn = document.getElementById('save-btn');
             btn.disabled = true;

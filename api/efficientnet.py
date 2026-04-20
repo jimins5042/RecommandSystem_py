@@ -1,4 +1,4 @@
-"""EfficientNet-B0 백본 — single-session, 2개 중간 출력 노출."""
+"""EfficientNet-B0 백본 — 멀티-스테이지 가중 signature(704D) + 1280D 임베딩."""
 from __future__ import annotations
 
 import os
@@ -24,9 +24,18 @@ class EfficientNetB0Backbone(Backbone):
     name = "efficientnet"
     display_name = "EfficientNet-B0"
 
-    # build_feature_model.py 에서 노출한 중간 출력 노드 이름
-    STAGE1_NODE = "/features/features.7/features.7.0/block/block.3/block.3.0/Conv_output_0"
-    STAGE2_NODE = "/Flatten_output_0"
+    # Stage 5~8 project conv 출력 (build_feature_model.py 와 동기화 유지)
+    # 각 스테이지 GAP → L2 정규화 → STAGE_WEIGHTS 곱 → concat = 80+112+192+320 = 704D signature
+    STAGE_NODES = [
+        '/features/features.4/features.4.2/block/block.3/block.3.0/Conv_output_0',
+        '/features/features.5/features.5.2/block/block.3/block.3.0/Conv_output_0',
+        '/features/features.6/features.6.3/block/block.3/block.3.0/Conv_output_0',
+        '/features/features.7/features.7.0/block/block.3/block.3.0/Conv_output_0',
+    ]
+    # Stage 8 지배 + Stage 5~7 은 간헐 보조. STAGE_NODES 와 동일 순서.
+    STAGE_WEIGHTS = [0.15, 0.15, 0.15, 1.0]
+    EMBEDDING_NODE = '/Flatten_output_0'
+    TOP_K = 40  # 704 채널 중 상위 K — 1차 필터링용
 
     ONNX_FILENAME = "efficientnet-b0-feat.onnx"
 
@@ -49,16 +58,24 @@ class EfficientNetB0Backbone(Backbone):
 
         arr = self._preprocess(image)
         input_name = self._session.get_inputs()[0].name
-        stage1, embedding = self._session.run(
-            [self.STAGE1_NODE, self.STAGE2_NODE],
+        outputs = self._session.run(
+            [*self.STAGE_NODES, self.EMBEDDING_NODE],
             {input_name: arr},
         )
-        # stage1:    (1, 320, 7, 7)  → channel axis = 0 (after [0] squeeze)
-        # embedding: (1, 1280)       → 0번째 샘플
-        emb = embedding[0]
+        stage_feats = outputs[:-1]      # 4 개, each (1, C_i, H_i, W_i)
+        embedding = outputs[-1][0]      # (1280,)
+
+        # 각 stage feature map → channel-wise GAP → L2 정규화 → 가중치 곱 → concat (704D)
+        # Stage 8 가중치 1.0 이 top-K 대부분을 차지해 semantic 변별력 유지,
+        # Stage 5~7 은 0.15 로 축소되어 특출난 채널만 간헐 진입 (multi-scale 보조).
+        gap_vecs = [s[0].mean(axis=(1, 2)) for s in stage_feats]
+        signature = np.concatenate([
+            w * (v / (np.linalg.norm(v) + 1e-8))
+            for v, w in zip(gap_vecs, self.STAGE_WEIGHTS)
+        ]).astype(np.float32)
 
         return BackboneOutput(
-            order=top_k_by_gap(stage1[0], channel_axis=0, k=25),
-            features_bytes=mean_binarize_pack(emb),
-            embedding_bytes=to_float16_bytes(emb),
+            order=top_k_by_gap(signature, channel_axis=0, k=self.TOP_K),
+            features_bytes=mean_binarize_pack(embedding),
+            embedding_bytes=to_float16_bytes(embedding),
         )

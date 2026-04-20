@@ -1,0 +1,386 @@
+{
+  "details" : {
+    "bag" : [ {
+      "recall" : 0.35,
+      "precision" : 0.7,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "bag_00",
+      "hit" : 7
+    }, {
+      "recall" : 0.45,
+      "precision" : 0.9,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "bag_39",
+      "hit" : 9
+    }, {
+      "recall" : 0.211,
+      "precision" : 0.4,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "bag_04",
+      "hit" : 4
+    }, {
+      "recall" : 0.211,
+      "precision" : 0.4,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "bag_35",
+      "hit" : 4
+    }, {
+      "recall" : 0.111,
+      "precision" : 0.2,
+      "retrieved" : 10,
+      "relevant" : 18,
+      "query_id" : "bag_17",
+      "hit" : 2
+    }, {
+      "recall" : 0.375,
+      "precision" : 0.6,
+      "retrieved" : 10,
+      "relevant" : 16,
+      "query_id" : "bag_06",
+      "hit" : 6
+    }, {
+      "recall" : 0.125,
+      "precision" : 0.2,
+      "retrieved" : 10,
+      "relevant" : 16,
+      "query_id" : "bag_23",
+      "hit" : 2
+    }, {
+      "recall" : 0.0,
+      "precision" : 0.0,
+      "retrieved" : 9,
+      "relevant" : 16,
+      "query_id" : "bag_31",
+      "hit" : 0
+    }, {
+      "recall" : 0.4,
+      "precision" : 0.6,
+      "retrieved" : 10,
+      "relevant" : 15,
+      "query_id" : "bag_09",
+      "hit" : 6
+    }, {
+      "recall" : 0.067,
+      "precision" : 0.1,
+      "retrieved" : 10,
+      "relevant" : 15,
+      "query_id" : "bag_18",
+      "hit" : 1
+    } ],
+    "sunglass" : [ {
+      "recall" : 0.1,
+      "precision" : 0.2,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "sunglass_01",
+      "hit" : 2
+    }, {
+      "recall" : 0.3,
+      "precision" : 0.6,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "sunglass_05",
+      "hit" : 6
+    }, {
+      "recall" : 0.4,
+      "precision" : 0.8,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "sunglass_07",
+      "hit" : 8
+    }, {
+      "recall" : 0.3,
+      "precision" : 0.6,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "sunglass_12",
+      "hit" : 6
+    }, {
+      "recall" : 0.05,
+      "precision" : 0.1,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "sunglass_38",
+      "hit" : 1
+    }, {
+      "recall" : 0.25,
+      "precision" : 0.5,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "sunglass_37",
+      "hit" : 5
+    }, {
+      "recall" : 0.2,
+      "precision" : 0.4,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "sunglass_36",
+      "hit" : 4
+    }, {
+      "recall" : 0.05,
+      "precision" : 0.1,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "sunglass_34",
+      "hit" : 1
+    }, {
+      "recall" : 0.053,
+      "precision" : 0.1,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "sunglass_10",
+      "hit" : 1
+    }, {
+      "recall" : 0.053,
+      "precision" : 0.1,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "sunglass_28",
+      "hit" : 1
+    } ],
+    "food" : [ {
+      "recall" : 0.15,
+      "precision" : 0.3,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "food_06",
+      "hit" : 3
+    }, {
+      "recall" : 0.45,
+      "precision" : 0.9,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "food_15",
+      "hit" : 9
+    }, {
+      "recall" : 0.105,
+      "precision" : 0.2,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "food_35",
+      "hit" : 2
+    }, {
+      "recall" : 0.0,
+      "precision" : 0.0,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "food_38",
+      "hit" : 0
+    }, {
+      "recall" : 0.278,
+      "precision" : 0.5,
+      "retrieved" : 10,
+      "relevant" : 18,
+      "query_id" : "food_05",
+      "hit" : 5
+    }, {
+      "recall" : 0.0,
+      "precision" : 0.0,
+      "retrieved" : 10,
+      "relevant" : 17,
+      "query_id" : "food_22",
+      "hit" : 0
+    }, {
+      "recall" : 0.176,
+      "precision" : 0.3,
+      "retrieved" : 10,
+      "relevant" : 17,
+      "query_id" : "food_29",
+      "hit" : 3
+    }, {
+      "recall" : 0.188,
+      "precision" : 0.3,
+      "retrieved" : 10,
+      "relevant" : 16,
+      "query_id" : "food_04",
+      "hit" : 3
+    }, {
+      "recall" : 0.313,
+      "precision" : 0.5,
+      "retrieved" : 10,
+      "relevant" : 16,
+      "query_id" : "food_08",
+      "hit" : 5
+    }, {
+      "recall" : 0.313,
+      "precision" : 0.5,
+      "retrieved" : 10,
+      "relevant" : 16,
+      "query_id" : "food_19",
+      "hit" : 5
+    } ],
+    "shoes" : [ {
+      "recall" : 0.1,
+      "precision" : 0.2,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "shoes_05",
+      "hit" : 2
+    }, {
+      "recall" : 0.25,
+      "precision" : 0.5,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "shoes_17",
+      "hit" : 5
+    }, {
+      "recall" : 0.15,
+      "precision" : 0.3,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "shoes_19",
+      "hit" : 3
+    }, {
+      "recall" : 0.1,
+      "precision" : 0.2,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "shoes_35",
+      "hit" : 2
+    }, {
+      "recall" : 0.1,
+      "precision" : 0.2,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "shoes_31",
+      "hit" : 2
+    }, {
+      "recall" : 0.0,
+      "precision" : 0.0,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "shoes_00",
+      "hit" : 0
+    }, {
+      "recall" : 0.368,
+      "precision" : 0.7,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "shoes_37",
+      "hit" : 7
+    }, {
+      "recall" : 0.111,
+      "precision" : 0.2,
+      "retrieved" : 10,
+      "relevant" : 18,
+      "query_id" : "shoes_03",
+      "hit" : 2
+    }, {
+      "recall" : 0.111,
+      "precision" : 0.2,
+      "retrieved" : 10,
+      "relevant" : 18,
+      "query_id" : "shoes_39",
+      "hit" : 2
+    }, {
+      "recall" : 0.0,
+      "precision" : 0.0,
+      "retrieved" : 9,
+      "relevant" : 18,
+      "query_id" : "shoes_28",
+      "hit" : 0
+    } ],
+    "clothes" : [ {
+      "recall" : 0.35,
+      "precision" : 0.7,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "clothes_07",
+      "hit" : 7
+    }, {
+      "recall" : 0.3,
+      "precision" : 0.6,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "clothes_08",
+      "hit" : 6
+    }, {
+      "recall" : 0.05,
+      "precision" : 0.1,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "clothes_34",
+      "hit" : 1
+    }, {
+      "recall" : 0.05,
+      "precision" : 0.1,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "clothes_37",
+      "hit" : 1
+    }, {
+      "recall" : 0.35,
+      "precision" : 0.7,
+      "retrieved" : 10,
+      "relevant" : 20,
+      "query_id" : "clothes_38",
+      "hit" : 7
+    }, {
+      "recall" : 0.421,
+      "precision" : 0.8,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "clothes_03",
+      "hit" : 8
+    }, {
+      "recall" : 0.158,
+      "precision" : 0.3,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "clothes_06",
+      "hit" : 3
+    }, {
+      "recall" : 0.368,
+      "precision" : 0.7,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "clothes_12",
+      "hit" : 7
+    }, {
+      "recall" : 0.316,
+      "precision" : 0.6,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "clothes_15",
+      "hit" : 6
+    }, {
+      "recall" : 0.316,
+      "precision" : 0.6,
+      "retrieved" : 10,
+      "relevant" : 19,
+      "query_id" : "clothes_20",
+      "hit" : 6
+    } ]
+  },
+  "summary" : {
+    "bag" : {
+      "query_count" : 10,
+      "avg_precision" : 0.41,
+      "avg_recall" : 0.23
+    },
+    "sunglass" : {
+      "query_count" : 10,
+      "avg_precision" : 0.35,
+      "avg_recall" : 0.176
+    },
+    "food" : {
+      "query_count" : 10,
+      "avg_precision" : 0.35,
+      "avg_recall" : 0.197
+    },
+    "shoes" : {
+      "query_count" : 10,
+      "avg_precision" : 0.25,
+      "avg_recall" : 0.129
+    },
+    "clothes" : {
+      "query_count" : 10,
+      "avg_precision" : 0.52,
+      "avg_recall" : 0.268
+    }
+  }
+}
