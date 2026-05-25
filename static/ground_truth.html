@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ground Truth Builder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --panel-bg: rgba(255, 255, 255, 0.85);
+            --border-color: rgba(0, 0, 0, 0.06);
+            --accent-color: #4f46e5;
+            --accent-hover: #4338ca;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.2rem 2rem;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(16px);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #0f172a, #4f46e5);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .progress-text {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .progress-bar-wrap {
+            width: 200px;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-color), #6366f1);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-color), #6366f1);
+            color: white;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+        }
+
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .btn-outline {
+            background: white;
+            color: var(--accent-color);
+            border: 1px solid var(--accent-color);
+        }
+
+        .btn-outline:hover { background: rgba(79, 70, 229, 0.05); }
+
+        /* Layout */
+        .layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            padding: 1rem 0;
+        }
+
+        .cat-section { margin-bottom: 0.5rem; }
+
+        .cat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.6rem 1.2rem;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            transition: background 0.15s;
+        }
+
+        .cat-header:hover { background: rgba(79, 70, 229, 0.04); }
+
+        .cat-badge {
+            font-size: 0.75rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .cat-badge.done { background: #d1fae5; color: #065f46; }
+        .cat-badge.pending { background: #fef3c7; color: #92400e; }
+
+        .cat-queries { display: none; }
+        .cat-queries.open { display: block; }
+
+        .query-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.45rem 1.2rem 0.45rem 2rem;
+            cursor: pointer;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            transition: all 0.15s;
+        }
+
+        .query-item:hover { background: rgba(79, 70, 229, 0.04); color: var(--text-main); }
+        .query-item.active { background: rgba(79, 70, 229, 0.08); color: var(--accent-color); font-weight: 600; }
+
+        .query-item .check {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid #cbd5e1;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+        }
+
+        .query-item .check.done {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        /* Main */
+        .main {
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            gap: 0.5rem;
+        }
+
+        /* Query view */
+        .query-header {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .query-image {
+            width: 200px;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 12px;
+            border: 2px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            background: #f1f5f9;
+        }
+
+        .query-info h2 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 0.3rem;
+        }
+
+        .query-info p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 0.2rem;
+        }
+
+        .candidates-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .select-count {
+            font-size: 0.85rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-weight: 700;
+        }
+
+        .select-count.incomplete { background: #fef3c7; color: #92400e; }
+        .select-count.complete { background: #d1fae5; color: #065f46; }
+
+        /* Candidate grid */
+        .candidates-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .candidate-card {
+            position: relative;
+            border-radius: 12px;
+            border: 2px solid var(--border-color);
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .candidate-card:hover {
+            border-color: #a5b4fc;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .candidate-card.selected {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2), 0 4px 12px rgba(79, 70, 229, 0.15);
+        }
+
+        .candidate-card img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            display: block;
+            background: #f1f5f9;
+        }
+
+        .candidate-card .card-footer {
+            padding: 0.4rem 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.78rem;
+        }
+
+        .candidate-card .sim-score {
+            color: var(--accent-color);
+            font-weight: 700;
+        }
+
+        .candidate-card .card-check {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 2px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            font-size: 12px;
+            color: white;
+        }
+
+        .candidate-card.selected .card-check {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
+        .candidate-card .img-error {
+            width: 100%;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f1f5f9;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        /* Footer actions */
+        .actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .nav-buttons { display: flex; gap: 0.5rem; }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 0.8rem 1.5rem;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: white;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 100;
+        }
+
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.success { background: var(--success); }
+        .toast.error { background: #ef4444; }
+
+        @media (max-width: 1100px) {
+            .candidates-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+
+        @media (max-width: 860px) {
+            .layout { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+            .candidates-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Ground Truth Builder</h1>
+        <div class="header-right">
+            <span class="progress-text" id="progress-text">0 / 0</span>
+            <div class="progress-bar-wrap">
+                <div class="progress-bar-fill" id="progress-bar" style="width: 0%"></div>
+            </div>
+            <button class="btn btn-outline" id="export-btn" onclick="exportJSON()">Export JSON</button>
+        </div>
+    </div>
+
+    <div class="layout">
+        <div class="sidebar" id="sidebar"></div>
+        <div class="main" id="main">
+            <div class="placeholder" id="placeholder">
+                <div style="font-size: 3rem; opacity: 0.3;">&#128269;</div>
+                <p>왼쪽에서 쿼리를 선택하세요</p>
+            </div>
+            <div id="query-view" style="display: none;"></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let allQueries = {};
+        let currentQueryId = null;
+        let currentCandidates = [];
+        let selectedIds = new Set();
+        let queryOrder = [];
+
+        async function init() {
+            try {
+                const [queriesRes, statusRes] = await Promise.all([
+                    fetch('/gt/queries'),
+                    fetch('/gt/status')
+                ]);
+
+                if (!queriesRes.ok) {
+                    document.getElementById('placeholder').innerHTML =
+                        '<p style="color:#ef4444;">queries.json이 없습니다.<br>먼저 build_ground_truth.py를 실행하세요.</p>';
+                    return;
+                }
+
+                const queriesData = await queriesRes.json();
+                const statusData = await statusRes.json();
+
+                allQueries = queriesData.categories;
+                buildSidebar(allQueries, statusData);
+                updateProgress(statusData);
+
+                queryOrder = [];
+                for (const cat of Object.keys(allQueries)) {
+                    for (const q of allQueries[cat]) {
+                        queryOrder.push(q.query_id);
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+                document.getElementById('placeholder').innerHTML =
+                    '<p style="color:#ef4444;">서버 연결 실패. 서버가 실행 중인지 확인하세요.</p>';
+            }
+        }
+
+        function buildSidebar(categories, status) {
+            const sidebar = document.getElementById('sidebar');
+            let html = '';
+
+            for (const [cat, queries] of Object.entries(categories)) {
+                const st = status.categories[cat] || { total: 0, completed: 0 };
+                const isDone = st.completed === st.total;
+                const badgeClass = isDone ? 'done' : 'pending';
+
+                html += `
+                    <div class="cat-section">
+                        <div class="cat-header" onclick="toggleCat(this)">
+                            <span>${cat}</span>
+                            <span class="cat-badge ${badgeClass}">${st.completed}/${st.total}</span>
+                        </div>
+                        <div class="cat-queries" data-cat="${cat}">
+                            ${queries.map(q => `
+                                <div class="query-item" data-id="${q.query_id}" onclick="loadQuery('${q.query_id}')">
+                                    <span class="check ${q.completed ? 'done' : ''}">${q.completed ? '&#10003;' : ''}</span>
+                                    <span>${q.query_id}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            sidebar.innerHTML = html;
+
+            // 첫 번째 카테고리 열기
+            const firstQueries = sidebar.querySelector('.cat-queries');
+            if (firstQueries) firstQueries.classList.add('open');
+        }
+
+        function toggleCat(headerEl) {
+            const list = headerEl.nextElementSibling;
+            list.classList.toggle('open');
+        }
+
+        function updateProgress(status) {
+            const { total, completed } = status.overall;
+            document.getElementById('progress-text').textContent = `${completed} / ${total}`;
+            const pct = total > 0 ? (completed / total * 100) : 0;
+            document.getElementById('progress-bar').style.width = pct + '%';
+        }
+
+        async function loadQuery(queryId) {
+            // 사이드바 active 상태
+            document.querySelectorAll('.query-item').forEach(el => el.classList.remove('active'));
+            const item = document.querySelector(`.query-item[data-id="${queryId}"]`);
+            if (item) item.classList.add('active');
+
+            try {
+                const res = await fetch(`/gt/query/${queryId}`);
+                if (!res.ok) throw new Error('쿼리 로드 실패');
+                const data = await res.json();
+
+                currentQueryId = queryId;
+                currentCandidates = data.candidates;
+                selectedIds = new Set(data.selected_image_ids || []);
+
+                renderQueryView(data);
+            } catch (e) {
+                console.error(e);
+                showToast('쿼리 로드 실패', 'error');
+            }
+        }
+
+        function renderQueryView(data) {
+            document.getElementById('placeholder').style.display = 'none';
+            const view = document.getElementById('query-view');
+            view.style.display = 'block';
+
+            const selectCount = selectedIds.size;
+            const countClass = selectCount === 10 ? 'complete' : 'incomplete';
+
+            let html = `
+                <div class="query-header">
+                    <img class="query-image" src="${data.image_url}" alt="${data.query_id}"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="img-error" style="display:none; width:200px; height:200px; align-items:center; justify-content:center; background:#f1f5f9; border-radius:12px; color:var(--text-muted);">이미지 로드 실패</div>
+                    <div class="query-info">
+                        <h2>${data.query_id}</h2>
+                        <p>카테고리: <strong>${data.category}</strong></p>
+                        <p>이미지 ID: ${data.image_id}</p>
+                    </div>
+                </div>
+
+                <div class="candidates-title">
+                    후보 ${data.candidates.length}건 중 10개 선택
+                    <span class="select-count ${countClass}" id="select-count">${selectCount} / 10</span>
+                </div>
+
+                <div class="candidates-grid">
+                    ${data.candidates.map((c, i) => `
+                        <div class="candidate-card ${selectedIds.has(c.image_id) ? 'selected' : ''}"
+                             data-image-id="${c.image_id}" onclick="toggleCandidate('${c.image_id}')">
+                            <img src="${c.image_url}" alt="${c.image_id}" loading="lazy"
+                                 onerror="this.outerHTML='<div class=\\'img-error\\'>이미지 로드 실패</div>'">
+                            <div class="card-footer">
+                                <span class="sim-score">${(c.similarity * 100).toFixed(1)}%</span>
+                                <span class="card-check">${selectedIds.has(c.image_id) ? '&#10003;' : ''}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="actions">
+                    <div class="nav-buttons">
+                        <button class="btn btn-outline" onclick="navigateQuery(-1)">&lt; 이전</button>
+                        <button class="btn btn-outline" onclick="navigateQuery(1)">다음 &gt;</button>
+                    </div>
+                    <button class="btn btn-primary" id="save-btn" onclick="saveSelection()"
+                            ${selectCount !== 10 ? 'disabled' : ''}>
+                        저장
+                    </button>
+                </div>
+            `;
+
+            view.innerHTML = html;
+        }
+
+        function toggleCandidate(imageId) {
+            if (selectedIds.has(imageId)) {
+                selectedIds.delete(imageId);
+            } else {
+                if (selectedIds.size >= 10) {
+                    showToast('최대 10개까지 선택 가능합니다', 'error');
+                    return;
+                }
+                selectedIds.add(imageId);
+            }
+
+            // UI 업데이트
+            document.querySelectorAll('.candidate-card').forEach(card => {
+                const id = card.dataset.imageId;
+                const isSelected = selectedIds.has(id);
+                card.classList.toggle('selected', isSelected);
+                card.querySelector('.card-check').innerHTML = isSelected ? '&#10003;' : '';
+            });
+
+            const count = selectedIds.size;
+            const countEl = document.getElementById('select-count');
+            countEl.textContent = `${count} / 10`;
+            countEl.className = 'select-count ' + (count === 10 ? 'complete' : 'incomplete');
+
+            document.getElementById('save-btn').disabled = count !== 10;
+        }
+
+        async function saveSelection() {
+            if (selectedIds.size !== 10 || !currentQueryId) return;
+
+            const btn = document.getElementById('save-btn');
+            btn.disabled = true;
+            btn.textContent = '저장 중...';
+
+            try {
+                const res = await fetch(`/gt/query/${currentQueryId}/select`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ selected_image_ids: [...selectedIds] })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || '저장 실패');
+                }
+
+                showToast('저장 완료', 'success');
+
+                // 사이드바 체크마크 업데이트
+                const item = document.querySelector(`.query-item[data-id="${currentQueryId}"]`);
+                if (item) {
+                    const check = item.querySelector('.check');
+                    check.classList.add('done');
+                    check.innerHTML = '&#10003;';
+                }
+
+                // 진행률 갱신
+                const statusRes = await fetch('/gt/status');
+                if (statusRes.ok) {
+                    const statusData = await statusRes.json();
+                    updateProgress(statusData);
+
+                    // 카테고리 배지 갱신
+                    for (const [cat, st] of Object.entries(statusData.categories)) {
+                        const badge = document.querySelector(`.cat-queries[data-cat="${cat}"]`)
+                            ?.previousElementSibling?.querySelector('.cat-badge');
+                        if (badge) {
+                            badge.textContent = `${st.completed}/${st.total}`;
+                            badge.className = 'cat-badge ' + (st.completed === st.total ? 'done' : 'pending');
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+                showToast(e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '저장';
+            }
+        }
+
+        function navigateQuery(direction) {
+            if (!currentQueryId) return;
+            const idx = queryOrder.indexOf(currentQueryId);
+            const newIdx = idx + direction;
+            if (newIdx >= 0 && newIdx < queryOrder.length) {
+                loadQuery(queryOrder[newIdx]);
+            }
+        }
+
+        function exportJSON() {
+            window.open('/gt/export', '_blank');
+        }
+
+        function showToast(msg, type) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast ' + type + ' show';
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        // 키보드 단축키
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') navigateQuery(-1);
+            if (e.key === 'ArrowRight') navigateQuery(1);
+            if (e.key === 'Enter' && !document.getElementById('save-btn')?.disabled) saveSelection();
+        });
+
+        init();
+    </script>
+</body>
+</html>

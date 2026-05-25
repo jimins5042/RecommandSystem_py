@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+onnxruntime
+numpy
+pillow
+python-multipart
+ultralytics
+python-dotenv
+faiss-cpu
+redis
