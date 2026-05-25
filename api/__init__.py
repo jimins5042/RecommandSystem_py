@@ -12,7 +12,6 @@ import logging
 from config import MODEL_DIR
 
 from api.base import Backbone, BackboneOutput
-from api.efficientnet import EfficientNetB0Backbone
 from api.resnet50 import ResNet50Backbone
 from api.vgg16 import VGG16Backbone
 
@@ -20,9 +19,7 @@ logger = logging.getLogger(__name__)
 
 _BACKBONE_CLASSES: list[type[Backbone]] = [
     VGG16Backbone,
-    EfficientNetB0Backbone,
     ResNet50Backbone,
-    # EfficientNetLite4Backbone,   # 향후 추가
 ]
 
 REGISTRY: dict[str, Backbone] = {}
