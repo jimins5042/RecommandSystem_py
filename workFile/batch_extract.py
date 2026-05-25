@@ -41,7 +41,7 @@ from config import (
     NUM_WORKERS,
     YOLO_CONF_THRESHOLD,
 )
-from api.efficientnet import EfficientNetB0Backbone
+
 
 SPLIT_SIZE = 500
 CSV_DIR    = os.path.join(CLASSIFY_DIR, "csv")
@@ -64,7 +64,6 @@ def _resolve_image_path(image_url: str) -> str:
 # ════════════════════════════════════════
 
 # 워커별 전역 (initializer 에서 세팅). fork 시 복제 방지 위해 None 시작.
-_w_backbone: EfficientNetB0Backbone | None = None
 _w_yolo:     YOLO | None = None
 
 
@@ -72,9 +71,7 @@ def _worker_init(model_dir: str):
     """각 워커 프로세스 시작 시 1회 실행 — 모델 로드."""
     global _w_backbone, _w_yolo
 
-    _w_backbone = EfficientNetB0Backbone(model_dir)
-    if not _w_backbone.is_loaded():
-        raise RuntimeError(f"EfficientNet-B0 ONNX 모델을 찾을 수 없습니다: {model_dir}")
+    
 
     yolo_path = os.path.join(model_dir, "best.pt")
     _w_yolo = YOLO(yolo_path) if os.path.exists(yolo_path) else None
