@@ -21,7 +21,6 @@ COPY . .
 
 # 절대 경로 환경변수 (.env보다 우선됨)
 ENV MODEL_DIR=/app/model
-ENV STATIC_DIR=/app/static
 
 EXPOSE 8000
 

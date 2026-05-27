@@ -1,10 +1,17 @@
+# ── 서빙 (web/, api/) ──
 fastapi
 uvicorn[standard]
-onnxruntime
-numpy
+python-multipart        # FastAPI UploadFile/File 폼 파싱에 필요 (직접 import 안 함)
+onnxruntime             # VGG16 / ResNet-50 ONNX 추론
+ultralytics             # YOLO 객체 감지
 pillow
-python-multipart
-ultralytics
-python-dotenv
-faiss-cpu
-redis
+numpy
+python-dotenv           # config.py 의 .env 로드
+
+# ── 오프라인 준비 스크립트 (workFile/) ──
+faiss-cpu               # train_pq_codebook.py 의 PQ 코드북 학습
+
+# 주의: torch / torchvision 은 여기에 두지 않는다.
+#   - export_resnet50.py 와 ultralytics 가 torch 를 필요로 하지만,
+#   - Dockerfile 에서 CPU 전용 휠(https://download.pytorch.org/whl/cpu)로 별도 설치한다.
+#     (requirements 에 넣으면 기본 인덱스의 CUDA 휠이 받아져 이미지가 비대해짐)

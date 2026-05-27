@@ -16,10 +16,8 @@ from PIL import Image
 from api.base import (
     Backbone,
     BackboneOutput,
-    mean_binarize_pack,
     pq_encode,
     to_float16_bytes,
-    top_k_by_gap,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,10 +75,8 @@ class ResNet50Backbone(Backbone):
         # 코드북이 있으면 PQ 인코딩, 없으면 None
         pq_bytes = pq_encode(embedding, self._codebook) if self._codebook is not None else None
 
-        # GAP 출력 자체가 채널 평균값이므로 1D 그대로 top-K 적용 가능
+        # ResNet-50 은 검색용 임베딩 + PQ 코드만 반환 (order/features 는 VGG16 전용)
         return BackboneOutput(
-            order=top_k_by_gap(embedding, channel_axis=0, k=25),
-            features_bytes=mean_binarize_pack(embedding),
             embedding_bytes=to_float16_bytes(embedding),
             pq_code_bytes=pq_bytes,
         )

@@ -60,7 +60,10 @@ async def process_image(
 
     return JSONResponse(content={
         "order": output.order,
-        "featuresBase64": base64.b64encode(output.features_bytes).decode("utf-8"),
+        "featuresBase64": (
+            base64.b64encode(output.features_bytes).decode("utf-8")
+            if output.features_bytes is not None else None
+        ),
         "embeddingBase64": (
             base64.b64encode(output.embedding_bytes).decode("utf-8")
             if output.embedding_bytes is not None else None
@@ -86,7 +89,10 @@ async def process_image_crop(name: str, file: UploadFile = File(...)):
 
     return JSONResponse(content={
         "order": output.order,
-        "featuresBase64": base64.b64encode(output.features_bytes).decode("utf-8"),
+        "featuresBase64": (
+            base64.b64encode(output.features_bytes).decode("utf-8")
+            if output.features_bytes is not None else None
+        ),
         "embeddingBase64": (
             base64.b64encode(output.embedding_bytes).decode("utf-8")
             if output.embedding_bytes is not None else None

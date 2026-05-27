@@ -17,18 +17,23 @@ from PIL import Image
 
 @dataclass
 class BackboneOutput:
-    """백본 추론 결과의 공통 스키마."""
-    order: str                           # JSON 문자열: top-K 채널 인덱스
-    features_bytes: bytes                # 이진화 후 packbits 결과
-    embedding_bytes: Optional[bytes] = None  # float16 raw embedding (cosine 재정렬용)
-    pq_code_bytes: Optional[bytes] = None    # Product Quantization 코드 (1차 필터용)
+    """백본 추론 결과의 공통 스키마.
+
+    백본마다 채우는 필드가 다르다 (미사용 필드는 None):
+      - VGG16    : order + features_bytes
+      - ResNet-50: embedding_bytes + pq_code_bytes
+    """
+    order: Optional[str] = None              # JSON 문자열: top-K 채널 인덱스 (VGG16)
+    features_bytes: Optional[bytes] = None   # 이진화 후 packbits 결과 (VGG16)
+    embedding_bytes: Optional[bytes] = None  # float16 raw embedding, cosine 재정렬용 (ResNet-50)
+    pq_code_bytes: Optional[bytes] = None    # Product Quantization 코드, 1차 필터용 (ResNet-50)
 
 
 class Backbone(ABC):
     """이미지 특징점 추출 백본의 공통 인터페이스."""
 
     # 서브클래스가 반드시 정의
-    name: ClassVar[str]           # URL 식별자 (예: "vgg16", "efficientnet-b0")
+    name: ClassVar[str]           # URL 식별자 (예: "vgg16", "resnet50")
     display_name: ClassVar[str]   # 사람이 읽는 이름 (예: "VGG16")
 
     # 공통 하이퍼파라미터 (필요 시 override)
